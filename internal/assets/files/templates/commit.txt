@@ -1,0 +1,10 @@
+<type>(<scope>): <summary>
+
+<为什么改、改了什么、还有什么没做>
+
+Task: <task-id>
+Attempt: <attempt>
+Checks: A1,A2
+Report: report.json
+Base: <base-sha>
+Status: done
