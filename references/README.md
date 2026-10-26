@@ -2,6 +2,8 @@
 
 本目录收集“以 fleet（舰队）方式编排 AI Agent”的开源项目与产品资料，全部按同一套 7 组件口径整理，供重建 Vibe Coding System 的舰队内核使用。
 
+> weeco 自身的设计见 [weeco-company-model.md](weeco-company-model.md)。
+
 ## 7 组件口径
 
 | 编号 | 组件 | 一句话 |

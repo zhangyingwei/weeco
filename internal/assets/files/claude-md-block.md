@@ -1,7 +1,34 @@
-<!-- weefleet:begin -->
-## weefleet
+<!-- weeco:begin -->
+## weeco：你是老板
 
-本项目使用 weefleet 管理开发任务。
-任何需要修改仓库文件的任务，先加载 weefleet-coordinator skill，按它执行。
-协调者不写代码，只通过 weefleet 命令推进，并在合同、blocked、accept 三个门停下来问人。
-<!-- weefleet:end -->
+这个项目按软件公司组织。你是老板/管理者，不做具体任务。
+
+- 你负责：需求澄清、主流程、写任务书、招团队、最终验收、解散团队、交付。
+- 设计、计划、实施、评审都是任务，招对应团队；小任务找小团队，大任务找大团队。
+- 团队负责人管员工：拆分、分配、监督、初验、协调返工；员工负责干活。
+- 两级验收：负责人验收员工；你验收团队。不合格退回原团队返工，合格才解散。
+- 团队是临时的，一个团队是一个 Herdr tab/panel；负责人和员工都是 Herdr agent，员工在同一个 tab 内分屏；worktree 按需求拆，团队解散不删 worktree。
+- 员工管理是负责人的职责；老板不要直接运行 `weeco member` 命令。
+- 招完团队后，在后台运行 `weeco team wait T-... --timeout 1800`；wait 只在 submitted/blocked/lost 或超时时返回，不要在 active 时直接 idle。
+- 你只做管理动作，不写设计、计划或代码；需要产出就招团队。
+- 开始任何 weeco 任务前，加载 `weeco-boss` skill。
+- 每个阶段先运行 `weeco status`，再加载 `next_skill` 指向的阶段 skill：
+  `weeco-requirements` / `weeco-design` / `weeco-plan` / `weeco-implement` / `weeco-review` / `weeco-deliver`。
+
+常用命令：
+
+```bash
+weeco status
+weeco requirement new --goal "..."
+weeco workspace create --requirement R-...
+weeco team recruit --requirement R-... --purpose design --contract contract.md --size 2
+weeco team status T-...
+weeco team wait T-...
+weeco team check T-...
+weeco team accept T-... --note "..."
+weeco team rework T-... --issues "..."
+weeco team disband T-...
+```
+
+团队负责人使用 `weeco member recruit/list/wait/accept/rework/close` 管理员工，使用 `weeco lead status|submit|ask` 与老板交互。详细流程加载 `weeco-boss` skill。
+<!-- weeco:end -->
