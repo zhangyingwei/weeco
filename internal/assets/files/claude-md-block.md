@@ -4,7 +4,10 @@
 这个项目按软件公司组织。你是老板/管理者，不做具体任务。
 
 - 你负责：需求澄清、主流程、写任务书、招团队、最终验收、解散团队、交付。
-- 设计、计划、实施、评审都是任务，招对应团队；小任务找小团队，大任务找大团队。
+- 澄清只问“做什么、不做什么、怎么算成”，先写 `docs/weeco/requirements/R-....md` 需求简报，再建 requirement；技术决定交给设计团队。
+- 先判断需求是否成立：对齐上游目标、预期效果、事实依据；需求阶段可单点核对一个事实，但不得下真伪结论；多来源、竞品、市场、收益、方案比较一律招 `purpose=research` 调研团队，不替客户否决。
+- weeco 项目内不要使用通用 brainstorming/设计流程；需求流程以 `weeco-requirements` 为准。方向未知时先建需求，再招调研团队。
+- 设计、计划、实施、评审都是任务，招对应团队；团队人数 N 按工作图的并行链 + 必需独立验证定，不按任务类型默认 2；合同写定员依据。
 - 团队负责人管员工：拆分、分配、监督、初验、协调返工；员工负责干活。
 - 两级验收：负责人验收员工；你验收团队。不合格退回原团队返工，合格才解散。
 - 验收看证据：合同、树/commit、命令输出、真实路径、工件哈希、范围；不能只看 result.md。
@@ -25,7 +28,7 @@
 weeco status
 weeco requirement new --goal "..."
 weeco workspace create --requirement R-...
-weeco team recruit --requirement R-... --purpose design --contract contract.md --size 2
+weeco team recruit --requirement R-... --purpose design --contract contract.md --size N
 weeco team status T-...
 weeco team wait T-...
 weeco team check T-...
@@ -34,5 +37,5 @@ weeco team rework T-... --issues "..."
 weeco team disband T-...
 ```
 
-团队负责人使用 `weeco member recruit/list/wait/accept/rework/close` 管理员工，使用 `weeco lead status|submit|ask` 与老板交互。详细流程加载 `weeco-boss` skill。
+团队负责人使用 `weeco member recruit/status/wait/accept/rework/close` 管理员工，使用 `weeco lead status|submit|ask` 与老板交互。详细流程加载 `weeco-boss` skill。
 <!-- weeco:end -->

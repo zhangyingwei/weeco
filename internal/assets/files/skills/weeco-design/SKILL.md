@@ -17,6 +17,7 @@ weeco status R-...
 
 - stage=requirement 或 design
 - 没有 open team
+- 需求简报存在，甄别结论不是“假需求/伪需求/错误需求”；“待验证”必须有客户确认或调研结论（旧需求没有简报时，先补写或记录跳过理由）
 
 如果 stage 还是 requirement，先切到设计：
 
@@ -34,9 +35,12 @@ weeco requirement stage R-... --set design
 - 交付物
 - 验收标准
 - 约束
+- 需求简报：`docs/weeco/requirements/R-...md`（设计团队只读）
 - 工作区
 - 团队人数（不含负责人）和角色
 - 拆分建议
+
+需求简报里的“待设计决定”就是设计团队要回答的问题；合同只引用，不复制。
 
 需要机器检查时，再写一份 `acceptance.json`。
 
@@ -48,8 +52,10 @@ weeco requirement stage R-... --set design
 weeco team recruit --requirement R-... \
   --purpose design \
   --contract docs/weeco/contracts/R-...-design.md \
-  --size 2
+  --size N
 ```
+
+N 按工作图定：工作单元、依赖、并行链、独立验证；链长不增加 N，耦合会减少 N；N > 3 写 ownership 和合并顺序，N > 5 拆需求。见 `weeco-boss` 定员。
 
 需要机器检查时加：
 
@@ -57,7 +63,7 @@ weeco team recruit --requirement R-... \
 --acceptance docs/weeco/contracts/R-...-acceptance.json
 ```
 
-老板要按设计工作量决定团队大小：小任务小团队，大任务大团队。
+老板要按工作图的并行链定人数，不按“设计”这个类型默认 2 人。
 
 ## 等结果
 

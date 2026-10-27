@@ -210,7 +210,7 @@ func cmdTeamRecruit(args []string) int {
 		})
 		return fail(err)
 	}
-	leadAgent := model.LeadAgentName(teamID)
+	leadAgent := model.LeadAgentName(project.Key, teamID)
 	cfg := store.LoadConfig()
 	if err := herdr.AgentStart(leadAgent, paneID, cfg.AgentKind, cfg.ReadyTimeoutMS, []string{teamDir}, cfg.TeamLeadPermissionMode, leadPromptPath); err != nil {
 		_ = store.WithLock(project.Key, func() error {
@@ -223,7 +223,7 @@ func cmdTeamRecruit(args []string) int {
 	if readyTimeout < 30 {
 		readyTimeout = 30
 	}
-	if err := herdr.AgentWait(leadAgent, readyTimeout, ""); err != nil {
+	if err := herdr.AgentWait(paneID, readyTimeout, ""); err != nil {
 		_ = store.WithLock(project.Key, func() error {
 			return store.Append(project.Key, "team", teamID, "team_start_failed", "system", map[string]any{"reason": err.Error()})
 		})
@@ -276,7 +276,7 @@ When the team deliverable meets the contract, write %s and run: weeco lead submi
 Do not edit the contract. Do not accept the team yourself; the boss accepts.
 `, teamID, project.Root, teamID, reqID, purpose, contractPath, teamDir, workspacePath, size,
 		size, project.Root, teamID, project.Root, teamID, filepath.Join(teamDir, "result.md"))
-	if err := herdr.AgentPrompt(leadAgent, initial, false, 0); err != nil {
+	if err := herdr.AgentPrompt(paneID, initial, false, 0); err != nil {
 		_ = store.WithLock(project.Key, func() error {
 			return store.Append(project.Key, "team", teamID, "team_lost", "system", map[string]any{"reason": "initial prompt: " + err.Error()})
 		})
@@ -363,7 +363,7 @@ func cmdTeamStatus(args []string) int {
 	memberViews := buildMemberViews(members)
 	live := ""
 	if team.LeadAgent != "" {
-		live = herdr.AgentStatus(team.LeadAgent)
+		live = herdr.AgentStatusFor(team.PaneID, team.LeadAgent)
 		if live == "" {
 			live = "missing"
 		}
@@ -468,13 +468,13 @@ func waitForTeam(project model.Project, teamID string, timeoutS float64) int {
 		if team.LeadAgent == "" {
 			return fail(fmt.Errorf("team %s has no lead agent", teamID))
 		}
-		live := herdr.AgentStatus(team.LeadAgent)
+		live := herdr.AgentStatusFor(team.PaneID, team.LeadAgent)
 		if live == "blocked" {
 			fmt.Printf("state: %s (live status: blocked)\n", team.State)
 			fmt.Println("inspect the team pane; the lead may be waiting on a UI question")
 			return 0
 		}
-		if live == "" && herdr.Agent(team.LeadAgent) == nil {
+		if live == "" && herdr.AgentFor(team.PaneID, team.LeadAgent) == nil {
 			_ = store.WithLock(project.Key, func() error {
 				return store.Append(project.Key, "team", teamID, "team_lost", "system", map[string]any{"reason": "lead agent is missing"})
 			})
@@ -522,7 +522,7 @@ func cmdTeamNudge(args []string) int {
 		return fail(fmt.Errorf("team %s has no lead agent; run weeco team repair %s", team.ID, team.ID))
 	}
 	prompt := "BOSS NUDGE: report status now. If employees still need review, run `weeco member wait --all`, read their reports, and run `weeco member accept/rework`. If the team deliverable meets the contract, write result.md and run `weeco lead submit`. If you are blocked, run `weeco lead ask --question \"...\"`. Do not go idle without submit or ask."
-	if err := herdr.AgentPrompt(team.LeadAgent, prompt, false, 0); err != nil {
+	if err := herdr.AgentPrompt(herdr.Target(team.PaneID, team.LeadAgent), prompt, false, 0); err != nil {
 		return fail(fmt.Errorf("could not nudge lead: %v", err))
 	}
 	if err := store.WithLock(project.Key, func() error {
@@ -558,7 +558,7 @@ func cmdTeamRepair(args []string) int {
 	live := map[string]any(nil)
 	liveStatus := "missing"
 	if team.LeadAgent != "" {
-		live = herdr.Agent(team.LeadAgent)
+		live = herdr.AgentFor(team.PaneID, team.LeadAgent)
 		if live != nil {
 			liveStatus = "present"
 			if status := asStringAny(live["agent_status"]); status != "" {
@@ -784,7 +784,7 @@ func cmdTeamRework(args []string) int {
 	}
 	prompt := fmt.Sprintf("BOSS REVIEW: rework required.\n\nIssues:\n%s\n\nReview file: %s\n\nRead the review, coordinate fixes with the team, update %s, then run: weeco lead submit --project %s --team %s",
 		issues, reviewPath, filepath.Join(store.TeamDir(project.Key, teamID), "result.md"), project.Root, teamID)
-	if err := herdr.AgentPrompt(team.LeadAgent, prompt, false, 0); err != nil {
+	if err := herdr.AgentPrompt(herdr.Target(team.PaneID, team.LeadAgent), prompt, false, 0); err != nil {
 		fmt.Printf("warning: could not prompt lead: %v\n", err)
 		fmt.Printf("prompt it in pane %s, or inspect the team with weeco team status\n", team.PaneID)
 	}
@@ -821,7 +821,7 @@ func cmdTeamAnswer(args []string) int {
 	}); err != nil {
 		return fail(err)
 	}
-	if err := herdr.AgentPrompt(team.LeadAgent, "BOSS DECISION: "+decision, false, 0); err != nil {
+	if err := herdr.AgentPrompt(herdr.Target(team.PaneID, team.LeadAgent), "BOSS DECISION: "+decision, false, 0); err != nil {
 		fmt.Printf("warning: could not prompt lead: %v\n", err)
 		fmt.Printf("answer it in pane %s\n", team.PaneID)
 	}

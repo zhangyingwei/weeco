@@ -29,7 +29,7 @@ make build
 | 老板 skill | `~/.claude/skills/weeco-boss/SKILL.md` |
 | 团队负责人 skill | `~/.claude/skills/weeco-team-lead/SKILL.md` |
 | slash command | `~/.claude/commands/weeco.md` |
-| 模板 | `~/.weeco/templates/{contract.md,result.md,acceptance.json}` |
+| 模板 | `~/.weeco/templates/{requirements.md,contract.md,result.md,acceptance.json,lessons.md}` |
 
 检查：
 
@@ -62,6 +62,8 @@ weeco init
 weeco requirement new --goal "..."
 weeco status
 ```
+
+澄清期间老板会判断需求是否成立（对齐上游目标、预期效果、事实依据），并把结论写进 `docs/weeco/requirements/R-....md`。老板只做单点事实核对，不做市场/竞品调研；方向未知或需要外部证据时，会先建需求并招 `purpose=research` 的调研团队，结论和选项交给你决定后再进入设计。
 
 得到一个需求号，例如 `R-20261026-01`。`weeco status` 会显示当前阶段和 `next_skill`，老板据此加载阶段 skill：
 
@@ -103,7 +105,11 @@ weeco status
 
 ## 团队
 - 目的：design
-- 人数：2 名员工（不含负责人）
+- 人数：N 名员工（不含负责人）
+- 工作单元：1) ... 2) ...
+- 依赖：A → B（没有就写“无”）
+- 并行链：...
+- 定员依据：N = 合并后的并行链数 + 必需的独立验证链；耦合/合并说明
 - 角色：产品、交互
 ```
 
@@ -111,8 +117,10 @@ weeco status
 
 ```bash
 weeco team recruit --requirement R-20261026-01 \
-  --purpose design --contract docs/weeco/contracts/design.md --size 2
+  --purpose design --contract docs/weeco/contracts/design.md --size N
 ```
+
+N 按工作图定：工作单元（能独立交付/验收的最小块）、依赖、并行链、耦合、独立验证。`N = 合并后的并行链数 + 必需的独立验证链`；链长不增加 N，耦合会减少 N；N > 3 写 ownership 和合并顺序，N > 5 拆需求。`size` 是员工数，不含负责人。
 
 `team recruit` 会：
 
@@ -130,7 +138,7 @@ weeco team recruit --requirement R-20261026-01 \
 
 ```bash
 weeco team recruit --requirement R-20261026-01 \
-  --purpose implement --contract implement.md --acceptance acceptance.json --size 3
+  --purpose implement --contract implement.md --acceptance acceptance.json --size N
 ```
 
 它会被复制到团队目录，`team check` 在那里运行。可选字段：`required_files`（检查文件并记录 SHA-256）、`require_clean_tree`（要求 git 工作区干净）、`record_git`（记录 commit/tree/branch/status）。

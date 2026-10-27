@@ -16,7 +16,7 @@
 | 负责人 | 被老板启动的 Herdr agent | 招员工、拆分、分配、监督、初验、协调返工 | 不替员工产出；不验收自己的团队 |
 | 员工 | 团队 tab 内的 Herdr agent（独立 pane） | 执行并交付 | 不直接找老板 |
 
-老板和负责人都是管理者，不是执行者。小任务找小团队，大任务找大团队；老板不自己做任务。
+老板和负责人都是管理者，不是执行者。团队人数按工作图的并行链 + 必需独立验证定，不按任务类型默认 2；老板不自己做任务。
 
 ### 成员命名
 
@@ -42,6 +42,9 @@ Herdr agent 名只接受 ASCII，因此每个员工另有一个 ASCII agent name
 - 只有团队确实不胜任、负责人丢失或方向错误，才换团队。
 - 老板不能只听说“done”；必须按合同看结果和证据：合同、树/commit、命令输出、真实路径、工件哈希、范围；不能只看 `result.md`。
 - 高风险需求（安全/数据/公共 API/支付/生产发布/跨模块核心改动）强制独立 review 团队；review 团队只读，老板仍做最终验收。
+- 需求成立性存疑时，老板在需求阶段招 `purpose=research` 的调研团队；只读、不改代码，结论写回需求简报。
+- 团队人数 N 按工作图的并行链 + 必需独立验证定，不按任务类型默认 2；`size` 是员工数，不含负责人。
+- Herdr agent 名是服务器级唯一：负责人名包含项目短哈希；成员招募前检查活体 agent 重名；团队/成员操作优先用 pane ID，agent 名只做显示。
 - 负责人用 `weeco member accept/rework` 验收员工，成员状态进入台账；`lead submit` 会检查没有 active/blocked/rework 的成员。
 
 ## 4. 实体
@@ -236,6 +239,7 @@ weeco lead status|submit|ask
 
 ```text
 ~/.weeco/worktrees/<key>/<R-id>/
+docs/weeco/requirements/R-....md # 老板写的需求简报（目标/范围/非目标/验收直觉/风险）
 docs/weeco/lessons.md           # 项目根；老板唯一写者
 ~/.weeco/panes/<pane>.json      # pane -> project/team；负责人和员工上下文
 ```

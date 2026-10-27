@@ -181,7 +181,7 @@ func cmdMemberRecruit(args []string) int {
 	if readyTimeout < 30 {
 		readyTimeout = 30
 	}
-	if err := herdr.AgentWait(agent, readyTimeout, ""); err != nil {
+	if err := herdr.AgentWait(paneID, readyTimeout, ""); err != nil {
 		return failMemberStart(project, member, paneID, "wait for agent: "+err.Error())
 	}
 	member.PaneID = paneID
@@ -210,7 +210,7 @@ Write your report to: %s
 Do not modify the contract. Do not push. Do not touch the main branch. Stay within your task scope.
 When done, write the report and stop. The lead will review your report.
 `, name, agent, role, team.ID, taskPath, team.Workspace, teamDir, reportPath)
-	if err := herdr.AgentPrompt(agent, initial, false, 0); err != nil {
+	if err := herdr.AgentPrompt(paneID, initial, false, 0); err != nil {
 		return failMemberStart(project, member, paneID, "initial prompt: "+err.Error())
 	}
 	_ = store.WithLock(project.Key, func() error {
@@ -226,8 +226,11 @@ func validateMemberIdentity(key string, team model.Team, name, agent, role strin
 	if !model.ValidAgentName(agent) {
 		return fmt.Errorf("invalid agent name %q: use 1-32 lowercase letters/digits/-/_ starting with a letter", agent)
 	}
-	if agent == model.LeadAgentName(team.ID) {
+	if agent == model.LeadAgentName(key, team.ID) {
 		return fmt.Errorf("agent name %q is reserved for the team lead", agent)
+	}
+	if live := herdr.Agent(agent); live != nil {
+		return fmt.Errorf("agent name %q is already live in Herdr; choose another name", agent)
 	}
 	if name == agent {
 		return fmt.Errorf("formal name and agent name must differ")
@@ -259,7 +262,7 @@ func memberSplitTarget(team model.Team, existing []model.Member) (string, string
 		if m.PaneID == "" || m.State == model.MemberClosed || m.State == model.MemberLost {
 			continue
 		}
-		if herdr.Agent(m.AgentName) != nil {
+		if herdr.AgentFor(m.PaneID, m.AgentName) != nil {
 			return m.PaneID, "down"
 		}
 	}
@@ -364,18 +367,18 @@ func cmdMemberWait(args []string) int {
 			fmt.Printf("%s: %s\n", m.AgentName, m.State)
 			continue
 		}
-		if herdr.Agent(m.AgentName) == nil {
+		if herdr.AgentFor(m.PaneID, m.AgentName) == nil {
 			_ = store.WithLock(project.Key, func() error {
 				return store.Append(project.Key, "member", m.Key(), "member_lost", "system", map[string]any{"reason": "agent is missing"})
 			})
 			fmt.Printf("%s: lost (agent is missing)\n", m.AgentName)
 			continue
 		}
-		if live := herdr.AgentStatus(m.AgentName); live == "blocked" {
+		if live := herdr.AgentStatusFor(m.PaneID, m.AgentName); live == "blocked" {
 			fmt.Printf("%s: blocked (live status); inspect the member pane\n", m.AgentName)
 			continue
 		}
-		if err := herdr.AgentWait(m.AgentName, timeout, ""); err != nil {
+		if err := herdr.AgentWait(herdr.Target(m.PaneID, m.AgentName), timeout, ""); err != nil {
 			fmt.Printf("%s: wait did not settle: %v\n", m.AgentName, err)
 			fmt.Printf("  inspect pane %s; run weeco member status %s\n", orDash(m.PaneID), m.AgentName)
 			continue
@@ -460,7 +463,7 @@ func cmdMemberRework(args []string) int {
 		return fail(err)
 	}
 	prompt := fmt.Sprintf("LEAD REVIEW: rework required.\n\nIssues:\n%s\n\nUpdate your report: %s\nWhen done, write the report and stop.", issues, member.ReportPath)
-	if err := herdr.AgentPrompt(agent, prompt, false, 0); err != nil {
+	if err := herdr.AgentPrompt(herdr.Target(member.PaneID, agent), prompt, false, 0); err != nil {
 		fmt.Printf("warning: could not prompt member: %v\n", err)
 		fmt.Printf("prompt it in pane %s\n", orDash(member.PaneID))
 	}
@@ -524,14 +527,14 @@ func memberLiveStatus(m model.Member) string {
 	if m.AgentName == "" {
 		return "unknown"
 	}
-	agent := herdr.Agent(m.AgentName)
+	agent := herdr.AgentFor(m.PaneID, m.AgentName)
 	if agent == nil {
 		if m.State == model.MemberClosed {
 			return "closed"
 		}
 		return "missing"
 	}
-	status := herdr.AgentStatus(m.AgentName)
+	status := herdr.AgentStatusFor(m.PaneID, m.AgentName)
 	if status == "" {
 		return "unknown"
 	}

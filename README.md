@@ -15,7 +15,7 @@
 ```
 
 - 老板不做具体任务；设计、计划、实施、评审都招团队。
-- 小任务找小团队，大任务找大团队。
+- 团队规模按工作图（并行链 + 必需独立验证）定，不按任务类型默认 2 人。
 - 每个团队成员（包括负责人）都有正式名字；员工另有 ASCII agent name，名字写进任务和 `result.md`。
 - 两级验收：负责人验收员工；老板验收团队。不合格退回原团队返工，合格才解散。
 - 团队是临时的；一个团队一个 Herdr tab/panel，负责人和员工都是 Herdr agent，员工在同一个 tab 内分屏加入；worktree 按需求拆，团队解散不删 worktree。
@@ -42,7 +42,7 @@ weeco init
 - 阶段 skill：`weeco-requirements`、`weeco-design`、`weeco-plan`、`weeco-implement`、`weeco-review`、`weeco-deliver`
 - 团队负责人：`weeco-team-lead`
 - slash command：`/weeco`
-- 模板：`~/.weeco/templates/{contract.md,result.md,acceptance.json,lessons.md}`
+- 模板：`~/.weeco/templates/{requirements.md,contract.md,result.md,acceptance.json,lessons.md}`
 
 ## 命令
 

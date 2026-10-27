@@ -47,8 +47,10 @@ weeco workspace create --requirement R-... --base main
 weeco team recruit --requirement R-... \
   --purpose plan \
   --contract docs/weeco/contracts/R-...-plan.md \
-  --size 2
+  --size N
 ```
+
+N 按工作图定：工作单元、依赖、并行链、独立验证；链长不增加 N，耦合会减少 N；N > 3 写 ownership 和合并顺序，N > 5 拆需求。见 `weeco-boss` 定员。
 
 ## 等结果
 

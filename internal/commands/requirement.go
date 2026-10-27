@@ -96,7 +96,8 @@ func cmdRequirementNew(args []string) int {
 		return fail(err)
 	}
 	fmt.Printf("requirement: %s\nstage:       %s\n", reqID, stage)
-	fmt.Printf("next:        weeco team recruit --requirement %s --purpose design --contract <file> --size N\n", reqID)
+	fmt.Printf("next:        write docs/weeco/requirements/%s.md (goal/scope/non-goals/verdict)\n", reqID)
+	fmt.Printf("             weeco team recruit --requirement %s --purpose design --contract <file> --size N\n", reqID)
 	return 0
 }
 

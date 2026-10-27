@@ -83,6 +83,44 @@ func Agents() map[string]map[string]any {
 
 func Agent(name string) map[string]any { return Agents()[name] }
 
+func AgentByPane(paneID string) map[string]any {
+	if paneID == "" {
+		return nil
+	}
+	for _, a := range Agents() {
+		if asString(a["pane_id"]) == paneID {
+			return a
+		}
+	}
+	return nil
+}
+
+// AgentFor prefers the pane ID: pane IDs are unique per Herdr server, while
+// agent names are only unique among live agents and may repeat across projects.
+func AgentFor(paneID, name string) map[string]any {
+	if a := AgentByPane(paneID); a != nil {
+		return a
+	}
+	return Agent(name)
+}
+
+func AgentStatusFor(paneID, name string) string {
+	a := AgentFor(paneID, name)
+	if a == nil {
+		return ""
+	}
+	return asString(a["agent_status"])
+}
+
+// Target prefers the pane ID for agent commands that accept a pane or a live
+// agent name.
+func Target(paneID, name string) string {
+	if paneID != "" {
+		return paneID
+	}
+	return name
+}
+
 func AgentStatus(name string) string {
 	a := Agent(name)
 	if a == nil {

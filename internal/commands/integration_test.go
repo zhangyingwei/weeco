@@ -554,3 +554,41 @@ func TestTeamStateTransitions(t *testing.T) {
 		t.Fatalf("accepted transitions wrong: %+v", team)
 	}
 }
+
+func TestMemberAgentNameMustBeUniqueAmongLiveAgents(t *testing.T) {
+	root := t.TempDir()
+	project, statePath := setupProject(t, root)
+	if code := Run([]string{"requirement", "new", "--goal", "agent name collision"}); code != 0 {
+		t.Fatalf("requirement new failed: %d", code)
+	}
+	reqIDs, err := store.ListRequirementIDs(project.Key)
+	if err != nil || len(reqIDs) != 1 {
+		t.Fatalf("requirement ids = %v, %v", reqIDs, err)
+	}
+	writeTestFile(t, filepath.Join(root, "contract.md"), "# Contract\n\nCollision.\n")
+	if code := Run([]string{"team", "recruit", "--requirement", reqIDs[0], "--purpose", "design", "--contract", "contract.md", "--size", "1"}); code != 0 {
+		t.Fatalf("team recruit failed: %d", code)
+	}
+	teamIDs, err := store.ListTeamIDs(project.Key)
+	if err != nil || len(teamIDs) != 1 {
+		t.Fatalf("team ids = %v, %v", teamIDs, err)
+	}
+	team, err := store.LoadTeam(project.Key, teamIDs[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var st fakeHerdrState
+	if err := sysutil.ReadJSON(statePath, &st); err != nil {
+		t.Fatal(err)
+	}
+	st.Agents["taken-agent"] = map[string]any{
+		"name": "taken-agent", "pane_id": "w9:p9", "agent_status": "idle",
+	}
+	if err := sysutil.WriteJSON(statePath, st); err != nil {
+		t.Fatal(err)
+	}
+	err = validateMemberIdentity(project.Key, team, "顾清和", "taken-agent", "员工")
+	if err == nil || !strings.Contains(err.Error(), "already live") {
+		t.Fatalf("live agent name should be rejected, got: %v", err)
+	}
+}

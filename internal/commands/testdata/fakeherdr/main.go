@@ -100,7 +100,7 @@ func main() {
 	}
 	if len(args) >= 2 && args[0] == "agent" && args[1] == "prompt" {
 		if len(args) >= 4 {
-			if agent, ok := st.Agents[args[2]]; ok {
+			if agent, ok := findAgent(st, args[2]); ok {
 				agent["last_prompt"] = args[3]
 				save()
 			}
@@ -108,7 +108,7 @@ func main() {
 		out(map[string]any{"result": map[string]any{}})
 	}
 	if len(args) >= 3 && args[0] == "agent" && args[1] == "get" {
-		agent, ok := st.Agents[args[2]]
+		agent, ok := findAgent(st, args[2])
 		if !ok {
 			agent = map[string]any{}
 		}
@@ -161,6 +161,18 @@ func main() {
 		out(map[string]any{"result": map[string]any{}})
 	}
 	out(map[string]any{"result": map[string]any{}})
+}
+
+func findAgent(st state, target string) (map[string]any, bool) {
+	if agent, ok := st.Agents[target]; ok {
+		return agent, true
+	}
+	for _, agent := range st.Agents {
+		if fmt.Sprint(agent["pane_id"]) == target {
+			return agent, true
+		}
+	}
+	return nil, false
 }
 
 func closePane(st state, paneID string) {

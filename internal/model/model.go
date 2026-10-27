@@ -117,13 +117,26 @@ func (t Team) CanDisband(force bool) bool {
 }
 
 // LeadAgentName is the Herdr agent name for a team lead. Herdr agent names are
-// lowercase and limited to 32 characters.
-func LeadAgentName(teamID string) string {
-	name := strings.ToLower(teamID) + "-lead"
+// unique among live agents per server, while team IDs are per project, so the
+// project key's short hash is included to keep names unique across projects.
+func LeadAgentName(projectKey, teamID string) string {
+	name := strings.ToLower(teamID) + "-" + projectShortID(projectKey) + "-lead"
 	if len(name) > 32 {
 		name = strings.TrimRight(name[:32], "-_")
 	}
 	return name
+}
+
+func projectShortID(key string) string {
+	if i := strings.LastIndex(key, "-"); i >= 0 {
+		if suffix := key[i+1:]; len(suffix) >= 4 && len(suffix) <= 12 {
+			return suffix
+		}
+	}
+	if len(key) > 8 {
+		return key[:8]
+	}
+	return key
 }
 
 type MemberState string

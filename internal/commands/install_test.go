@@ -56,4 +56,18 @@ func TestInstallUpdatesOwnedTemplate(t *testing.T) {
 	if string(contract) != "# custom contract\n" {
 		t.Fatalf("unowned template was overwritten:\n%s", contract)
 	}
+
+	// The requirement brief template is installed with the rest.
+	requirementsPath := filepath.Join(templateDir, "requirements.md")
+	wantRequirements, err := assets.Read(assets.RequirementsTemplate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	requirements, err := os.ReadFile(requirementsPath)
+	if err != nil {
+		t.Fatalf("requirements template not installed: %v", err)
+	}
+	if !bytes.Equal(requirements, wantRequirements) {
+		t.Fatalf("requirements template mismatch:\n%s", requirements)
+	}
 }
