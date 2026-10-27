@@ -67,6 +67,14 @@ func cmdDoctor(args []string) int {
 	wd, _ := os.Getwd()
 	if project, err := store.FindProject(wd); err == nil {
 		add("project initialized", true, false, project.Root+" ("+project.Key+")")
+		trustRoot, trusted, trustErr := claudeTrust(project.Root)
+		detail := "trusted: " + trustRoot
+		if trustErr != nil {
+			detail = "cannot read Claude config: " + trustErr.Error()
+		} else if !trusted {
+			detail = "not trusted; run: weeco trust " + trustRoot
+		}
+		add("claude workspace trust", trusted && trustErr == nil, false, detail)
 	} else {
 		add("project initialized", false, false, "no project from cwd; run: weeco init --root <path>")
 	}

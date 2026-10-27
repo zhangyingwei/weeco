@@ -136,6 +136,13 @@ func cmdTeamRecruit(args []string) int {
 	if err != nil {
 		return fail(err)
 	}
+	trustRoot, trusted, err := claudeTrust(workspacePath)
+	if err != nil {
+		return fail(fmt.Errorf("check Claude workspace trust: %w", err))
+	}
+	if !trusted {
+		return fail(fmt.Errorf("workspace is not trusted by Claude Code: %s\nrun: weeco trust %s\nor start claude in that directory once and accept the trust dialog", workspacePath, trustRoot))
+	}
 	var teamID, teamDir, contractPath, contractSHA string
 	err = store.WithLock(project.Key, func() error {
 		teamID = fs.value("id")

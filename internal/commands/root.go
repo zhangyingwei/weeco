@@ -6,7 +6,7 @@ import (
 )
 
 // Version is the CLI version. Override at build time with -ldflags.
-var Version = "0.9.7"
+var Version = "0.9.8"
 
 const usageText = `weeco: a company/team control plane for Herdr + Claude
 
@@ -21,6 +21,7 @@ commands:
   lead          status | submit | ask
   member        recruit | status | wait | accept | rework | close
   install       install the binary, skills, slash command and templates
+  trust         trust a project root for Claude Code (worktrees inherit)
   doctor        check claude, herdr and the weeco setup
   version       print the version
 
@@ -57,6 +58,8 @@ func Run(args []string) int {
 		return cmdMember(rest)
 	case "install":
 		return cmdInstall(rest)
+	case "trust":
+		return cmdTrust(rest)
 	case "doctor":
 		return cmdDoctor(rest)
 	default:

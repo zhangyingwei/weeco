@@ -50,6 +50,7 @@ weeco init
 
 ```bash
 weeco init
+weeco trust .
 weeco status
 weeco requirement new --goal "..."
 weeco requirement list|show|stage|close

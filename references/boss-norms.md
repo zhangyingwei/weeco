@@ -546,6 +546,14 @@ N 是员工数，不含负责人；负责人负责集成、统稿和验收，不
 | 设计 | 设计决策/文档 | 数据模型、交互；共享接口就合并 |
 | 评审 | 审查维度 | 正确性、安全；作者不能是唯一评审 |
 
+### 6.4 Claude 工作区信任
+
+- Claude Code 首次进入一个目录会弹工作区信任确认；未信任时 `herdr agent start` 返回 `agent_not_ready`，`team recruit` 失败，并可能留下 lost 团队。
+- 信任键是 canonical git root；linked worktree 继承主仓库的信任。
+- 解决：启动 Claude 前运行 `weeco trust <project-root>`，或在该目录启动 Claude 接受一次弹窗。
+- `weeco trust` 写 `~/.claude.json` 的 `projects[<root>].hasTrustDialogAccepted`，保留其他字段，首次修改留一份 `.weeco-backup`。
+- `team recruit` 和 `doctor` 预检；未信任时给出明确命令，不创建团队。
+
 ## 7. P1 必需增强
 
 | 文件 | 改动 | 产出 |
@@ -655,6 +663,13 @@ P0 完成后，用一个小需求 dry run：
 - [x] 合同模板增加工作单元、依赖、并行链、定员依据、ownership/合并顺序。
 - [x] `weeco-boss`、阶段 skill、quickstart、company model 同步。
 - [x] `size` 明确为员工数，不含负责人。
+
+### 工作区信任（本批）
+
+- [x] 新增 `weeco trust [PATH]`：写 Claude 工作区信任，git 根生效，worktree 继承。
+- [x] `team recruit` 预检：未信任直接报错，不创建 lost 团队。
+- [x] `doctor` 显示 `claude workspace trust`。
+- [x] 集成测试覆盖写入、备份、worktree 继承、招募预检。
 
 ### 跨项目隔离（本批）
 
