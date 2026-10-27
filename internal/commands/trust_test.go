@@ -89,24 +89,39 @@ func TestClaudeTrustUsesGitRootForWorktrees(t *testing.T) {
 	}
 }
 
-func TestTeamRecruitRequiresClaudeTrust(t *testing.T) {
+func TestTeamRecruitAutoTrustsByDefault(t *testing.T) {
 	root := t.TempDir()
 	project, _ := setupProject(t, root)
-	// setupProject trusts the project; start from an untrusted config.
 	configPath := os.Getenv("WEECO_CLAUDE_CONFIG")
 	writeTestFile(t, configPath, `{"projects":{}}`)
+	if _, trusted, err := claudeTrust(project.Root); err != nil || trusted {
+		t.Fatalf("test setup should be untrusted: trusted=%v err=%v", trusted, err)
+	}
+	reqID, contract := prepareTrustRecruit(t, root)
 
-	if code := Run([]string{"requirement", "new", "--goal", "trust gate"}); code != 0 {
-		t.Fatalf("requirement new failed: %d", code)
+	recruit := []string{"team", "recruit", "--requirement", reqID, "--purpose", "design", "--contract", contract, "--size", "1"}
+	if code := Run(recruit); code != 0 {
+		t.Fatalf("team recruit should auto-trust: %d", code)
 	}
-	reqIDs, err := store.ListRequirementIDs(project.Key)
-	if err != nil || len(reqIDs) != 1 {
-		t.Fatalf("requirement ids = %v, %v", reqIDs, err)
+	teamIDs, err := store.ListTeamIDs(project.Key)
+	if err != nil || len(teamIDs) != 1 {
+		t.Fatalf("team ids = %v, %v", teamIDs, err)
 	}
-	writeTestFile(t, filepath.Join(root, "contract.md"), "# Contract\n\nTrust gate.\n")
-	recruit := []string{"team", "recruit", "--requirement", reqIDs[0], "--purpose", "design", "--contract", "contract.md", "--size", "1"}
+	if _, trusted, err := claudeTrust(project.Root); err != nil || !trusted {
+		t.Fatalf("workspace should be trusted after recruit: trusted=%v err=%v", trusted, err)
+	}
+}
+
+func TestTeamRecruitNoTrustFails(t *testing.T) {
+	root := t.TempDir()
+	project, _ := setupProject(t, root)
+	configPath := os.Getenv("WEECO_CLAUDE_CONFIG")
+	writeTestFile(t, configPath, `{"projects":{}}`)
+	reqID, contract := prepareTrustRecruit(t, root)
+
+	recruit := []string{"team", "recruit", "--requirement", reqID, "--purpose", "design", "--contract", contract, "--size", "1", "--no-trust"}
 	if code := Run(recruit); code == 0 {
-		t.Fatal("team recruit should fail when the workspace is not trusted")
+		t.Fatal("team recruit --no-trust should fail when the workspace is not trusted")
 	}
 	teamIDs, err := store.ListTeamIDs(project.Key)
 	if err != nil {
@@ -115,11 +130,55 @@ func TestTeamRecruitRequiresClaudeTrust(t *testing.T) {
 	if len(teamIDs) != 0 {
 		t.Fatalf("untrusted recruit should not create a team: %v", teamIDs)
 	}
+}
 
-	if code := Run([]string{"trust", project.Root}); code != 0 {
-		t.Fatalf("weeco trust failed: %d", code)
+func TestInitTrustsProjectByDefault(t *testing.T) {
+	root := t.TempDir()
+	configPath := filepath.Join(t.TempDir(), "claude.json")
+	t.Setenv("WEECO_CLAUDE_CONFIG", configPath)
+	t.Setenv("WEECO_HOME", t.TempDir())
+	if code := Run([]string{"init", "--root", root}); code != 0 {
+		t.Fatalf("init failed: %d", code)
 	}
-	if code := Run(recruit); code != 0 {
-		t.Fatalf("team recruit after trust failed: %d", code)
+	project, err := store.FindProject(root)
+	if err != nil {
+		t.Fatal(err)
 	}
+	if _, trusted, err := claudeTrust(project.Root); err != nil || !trusted {
+		t.Fatalf("init should trust the project: trusted=%v err=%v", trusted, err)
+	}
+}
+
+func TestInitNoTrustSkips(t *testing.T) {
+	root := t.TempDir()
+	configPath := filepath.Join(t.TempDir(), "claude.json")
+	t.Setenv("WEECO_CLAUDE_CONFIG", configPath)
+	t.Setenv("WEECO_HOME", t.TempDir())
+	if code := Run([]string{"init", "--root", root, "--no-trust"}); code != 0 {
+		t.Fatalf("init failed: %d", code)
+	}
+	project, err := store.FindProject(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, trusted, err := claudeTrust(project.Root); err != nil || trusted {
+		t.Fatalf("init --no-trust should not trust: trusted=%v err=%v", trusted, err)
+	}
+}
+
+func prepareTrustRecruit(t *testing.T, root string) (string, string) {
+	t.Helper()
+	if code := Run([]string{"requirement", "new", "--goal", "trust gate"}); code != 0 {
+		t.Fatalf("requirement new failed: %d", code)
+	}
+	project, err := store.FindProject(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reqIDs, err := store.ListRequirementIDs(project.Key)
+	if err != nil || len(reqIDs) != 1 {
+		t.Fatalf("requirement ids = %v, %v", reqIDs, err)
+	}
+	writeTestFile(t, filepath.Join(root, "contract.md"), "# Contract\n\nTrust gate.\n")
+	return reqIDs[0], "contract.md"
 }

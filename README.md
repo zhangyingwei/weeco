@@ -43,6 +43,7 @@ weeco init
 - 团队负责人：`weeco-team-lead`
 - slash command：`/weeco`
 - 模板：`~/.weeco/templates/{requirements.md,contract.md,result.md,acceptance.json,lessons.md}`
+- 工作区信任：`weeco init` 默认写入；`team recruit` 默认补写；`--no-trust` 关闭。信任按 git 根生效，worktree 继承。
 
 ## 命令
 
@@ -50,7 +51,6 @@ weeco init
 
 ```bash
 weeco init
-weeco trust .
 weeco status
 weeco requirement new --goal "..."
 weeco requirement list|show|stage|close

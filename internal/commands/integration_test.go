@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -40,6 +39,8 @@ func setupProject(t *testing.T, root string) (model.Project, string) {
 	t.Setenv("FAKE_HERDR_STATE", statePath)
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_WORKSPACE_ID", "w1")
+	configPath := filepath.Join(t.TempDir(), "claude.json")
+	t.Setenv("WEECO_CLAUDE_CONFIG", configPath)
 	t.Cleanup(func() { _ = os.Chdir(wd) })
 	if err := os.Chdir(root); err != nil {
 		t.Fatal(err)
@@ -50,20 +51,6 @@ func setupProject(t *testing.T, root string) (model.Project, string) {
 	project, err := store.FindProject(root)
 	if err != nil {
 		t.Fatalf("find project: %v", err)
-	}
-	configPath := filepath.Join(t.TempDir(), "claude.json")
-	t.Setenv("WEECO_CLAUDE_CONFIG", configPath)
-	cfg := map[string]any{
-		"projects": map[string]any{
-			project.Root: map[string]any{"hasTrustDialogAccepted": true},
-		},
-	}
-	configData, err := json.Marshal(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(configPath, configData, 0o600); err != nil {
-		t.Fatal(err)
 	}
 	return project, statePath
 }

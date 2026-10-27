@@ -54,13 +54,12 @@ weeco init
 
 > 你是老板，不做具体任务；需要设计、计划、实施、评审时招团队。
 
-Claude Code 首次进入一个新目录会弹工作区信任确认。提前写入信任：
+Claude Code 首次进入一个新目录会弹工作区信任确认。`weeco init` 默认写入信任，把 canonical git root 记到 `~/.claude.json`，worktree 自动继承。也可以在目录里启动 Claude，接受一次弹窗。
 
-```bash
-weeco trust .
-```
-
-`weeco trust` 把 canonical git root 记到 `~/.claude.json`，worktree 自动继承。也可以直接在这个目录启动一次 Claude，接受信任弹窗。要在启动 Claude **之前**执行；已经启动的会话需要重启才会生效。`team recruit` 会预检，未信任时直接报错并给出命令。
+- 不想自动信任：`weeco init --no-trust`，之后可手动 `weeco trust .`
+- 老项目或独立工作区：`weeco trust <path>`
+- `team recruit` 默认会补信任；加 `--no-trust` 则要求已信任，否则报错。
+- 信任要在启动 Claude **之前**写入；已经启动的会话需要重启才会生效。
 
 ## 3. 提需求
 

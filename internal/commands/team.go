@@ -65,7 +65,7 @@ func cmdTeamRecruit(args []string) int {
 		return fail(err)
 	}
 	if helpRequested(fs) {
-		fmt.Println("usage: weeco team recruit --requirement R-... --contract FILE --size N [--acceptance FILE] [--purpose NAME] [--id T-...] [--allow-root]")
+		fmt.Println("usage: weeco team recruit --requirement R-... --contract FILE --size N [--acceptance FILE] [--purpose NAME] [--id T-...] [--allow-root] [--no-trust]")
 		return 0
 	}
 	reqID := fs.value("requirement")
@@ -141,7 +141,17 @@ func cmdTeamRecruit(args []string) int {
 		return fail(fmt.Errorf("check Claude workspace trust: %w", err))
 	}
 	if !trusted {
-		return fail(fmt.Errorf("workspace is not trusted by Claude Code: %s\nrun: weeco trust %s\nor start claude in that directory once and accept the trust dialog", workspacePath, trustRoot))
+		if fs.bool("no-trust") {
+			return fail(fmt.Errorf("workspace is not trusted by Claude Code: %s\nrun: weeco trust %s\nor start claude in that directory once and accept the trust dialog", workspacePath, trustRoot))
+		}
+		if _, _, _, err := setClaudeTrust(workspacePath); err != nil {
+			return fail(fmt.Errorf("record Claude workspace trust: %w", err))
+		}
+		trustRoot, trusted, err = claudeTrust(workspacePath)
+		if err != nil || !trusted {
+			return fail(fmt.Errorf("workspace trust was not recorded: %s", workspacePath))
+		}
+		fmt.Printf("trust:     recorded %s\n", trustRoot)
 	}
 	var teamID, teamDir, contractPath, contractSHA string
 	err = store.WithLock(project.Key, func() error {

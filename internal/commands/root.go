@@ -6,7 +6,7 @@ import (
 )
 
 // Version is the CLI version. Override at build time with -ldflags.
-var Version = "0.9.8"
+var Version = "0.9.9"
 
 const usageText = `weeco: a company/team control plane for Herdr + Claude
 

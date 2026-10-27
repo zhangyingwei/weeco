@@ -1,4 +1,4 @@
-VERSION ?= 0.9.8
+VERSION ?= 0.9.9
 GO ?= go
 LDFLAGS := -s -w -X weeco/internal/commands.Version=$(VERSION)
 PLATFORMS := darwin-arm64 darwin-amd64 linux-arm64 linux-amd64

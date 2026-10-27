@@ -21,7 +21,7 @@ func cmdInit(args []string) int {
 		return fail(err)
 	}
 	if helpRequested(fs) {
-		fmt.Println("usage: weeco init [--root PATH] [--name NAME] [--no-claude-md]")
+		fmt.Println("usage: weeco init [--root PATH] [--name NAME] [--no-claude-md] [--no-trust]")
 		return 0
 	}
 	root := fs.value("root")
@@ -34,6 +34,16 @@ func cmdInit(args []string) int {
 	project, err := store.InitProject(root, fs.value("name"))
 	if err != nil {
 		return fail(err)
+	}
+	if fs.bool("no-trust") {
+		fmt.Println("trust:   skipped (--no-trust)")
+	} else if info, statErr := os.Stat(project.Root); statErr != nil || !info.IsDir() {
+		fmt.Printf("trust:   skipped (project dir is not usable: %v)\n", statErr)
+	} else if trustRoot, _, _, err := setClaudeTrust(project.Root); err != nil {
+		fmt.Printf("trust:   warning: %v\n", err)
+		fmt.Printf("         run: weeco trust %s\n", project.Root)
+	} else {
+		fmt.Printf("trust:   recorded %s\n", trustRoot)
 	}
 	if !fs.bool("no-claude-md") {
 		if err := writeClaudeMD(project.Root); err != nil {

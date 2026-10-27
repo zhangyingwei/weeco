@@ -550,9 +550,10 @@ N 是员工数，不含负责人；负责人负责集成、统稿和验收，不
 
 - Claude Code 首次进入一个目录会弹工作区信任确认；未信任时 `herdr agent start` 返回 `agent_not_ready`，`team recruit` 失败，并可能留下 lost 团队。
 - 信任键是 canonical git root；linked worktree 继承主仓库的信任。
-- 解决：启动 Claude 前运行 `weeco trust <project-root>`，或在该目录启动 Claude 接受一次弹窗。
+- 默认：`weeco init` 写入项目根信任；`team recruit` 发现未信任时自动补写。两者都可用 `--no-trust` 关闭。
+- 手动：`weeco trust <project-root>`，或在目录启动 Claude 接受一次弹窗。
 - `weeco trust` 写 `~/.claude.json` 的 `projects[<root>].hasTrustDialogAccepted`，保留其他字段，首次修改留一份 `.weeco-backup`。
-- `team recruit` 和 `doctor` 预检；未信任时给出明确命令，不创建团队。
+- 信任必须在启动 Claude 前写入；已启动的会话需要重启。`doctor` 显示当前项目的信任状态。
 
 ## 7. P1 必需增强
 
@@ -667,9 +668,10 @@ P0 完成后，用一个小需求 dry run：
 ### 工作区信任（本批）
 
 - [x] 新增 `weeco trust [PATH]`：写 Claude 工作区信任，git 根生效，worktree 继承。
-- [x] `team recruit` 预检：未信任直接报错，不创建 lost 团队。
+- [x] `weeco init` 默认写入信任；`--no-trust` 关闭。
+- [x] `team recruit` 默认补信任；`--no-trust` 时要求已信任，否则报错且不创建团队。
 - [x] `doctor` 显示 `claude workspace trust`。
-- [x] 集成测试覆盖写入、备份、worktree 继承、招募预检。
+- [x] 集成测试覆盖默认信任、关闭开关、worktree 继承、招募自动补信任。
 
 ### 跨项目隔离（本批）
 

@@ -45,6 +45,7 @@ Herdr agent 名只接受 ASCII，因此每个员工另有一个 ASCII agent name
 - 需求成立性存疑时，老板在需求阶段招 `purpose=research` 的调研团队；只读、不改代码，结论写回需求简报。
 - 团队人数 N 按工作图的并行链 + 必需独立验证定，不按任务类型默认 2；`size` 是员工数，不含负责人。
 - Herdr agent 名是服务器级唯一：负责人名包含项目短哈希；成员招募前检查活体 agent 重名；团队/成员操作优先用 pane ID，agent 名只做显示。
+- `weeco init` 和 `team recruit` 默认写入 Claude 工作区信任；`--no-trust` 关闭。信任按 git 根生效，worktree 继承。
 - 负责人用 `weeco member accept/rework` 验收员工，成员状态进入台账；`lead submit` 会检查没有 active/blocked/rework 的成员。
 
 ## 4. 实体
