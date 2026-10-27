@@ -57,21 +57,17 @@ func pendingMemberNames(members []model.Member) string {
 
 func cmdMember(args []string) int {
 	if len(args) == 0 {
-		fmt.Println("usage: weeco member <recruit|list|status|wait|prompt|accept|rework|close> [flags]")
+		fmt.Println("usage: weeco member <recruit|status|wait|accept|rework|close> [flags]")
 		return 1
 	}
 	sub, rest := args[0], args[1:]
 	switch sub {
 	case "recruit":
 		return cmdMemberRecruit(rest)
-	case "list":
-		return cmdMemberList(rest)
 	case "status":
 		return cmdMemberStatus(rest)
 	case "wait":
 		return cmdMemberWait(rest)
-	case "prompt":
-		return cmdMemberPrompt(rest)
 	case "accept":
 		return cmdMemberAccept(rest)
 	case "rework":
@@ -79,7 +75,7 @@ func cmdMember(args []string) int {
 	case "close":
 		return cmdMemberClose(rest)
 	case "-h", "--help":
-		fmt.Println("usage: weeco member <recruit|list|status|wait|prompt|accept|rework|close> [flags]")
+		fmt.Println("usage: weeco member <recruit|status|wait|accept|rework|close> [flags]")
 		return 0
 	default:
 		return fail(fmt.Errorf("unknown member command: %s", sub))
@@ -281,41 +277,6 @@ func failMemberStart(project model.Project, member model.Member, paneID, reason 
 	return fail(fmt.Errorf("member %s failed to start: %s", member.AgentName, reason))
 }
 
-func cmdMemberList(args []string) int {
-	fs, err := parseFlags(args, map[string]bool{"project": true, "team": true})
-	if err != nil {
-		return fail(err)
-	}
-	if helpRequested(fs) {
-		fmt.Println("usage: weeco member list [--json]")
-		return 0
-	}
-	project, team, err := resolveLeadTeam(fs)
-	if err != nil {
-		return fail(err)
-	}
-	members, err := store.MembersForTeam(project.Key, team.ID)
-	if err != nil {
-		return fail(err)
-	}
-	views := buildMemberViews(members)
-	if fs.bool("json") {
-		data, _ := json.MarshalIndent(views, "", "  ")
-		fmt.Println(string(data))
-		return 0
-	}
-	if len(views) == 0 {
-		fmt.Println("no members")
-		return 0
-	}
-	fmt.Printf("%-18s %-18s %-12s %-10s %-10s %-10s %s\n", "AGENT", "NAME", "ROLE", "STATE", "LIVE", "PANE", "REPORT")
-	for _, v := range views {
-		fmt.Printf("%-18s %-18s %-12s %-10s %-10s %-10s %s\n",
-			v.AgentName, v.Name, v.Role, v.State, v.Live, orDash(v.PaneID), v.Report)
-	}
-	return 0
-}
-
 func cmdMemberStatus(args []string) int {
 	fs, err := parseFlags(args, map[string]bool{"project": true, "team": true, "agent": true})
 	if err != nil {
@@ -428,53 +389,6 @@ func cmdMemberWait(args []string) int {
 	return 0
 }
 
-func cmdMemberPrompt(args []string) int {
-	fs, err := parseFlags(args, map[string]bool{
-		"project": true, "team": true, "agent": true, "text": true, "file": true,
-	})
-	if err != nil {
-		return fail(err)
-	}
-	if helpRequested(fs) {
-		fmt.Println("usage: weeco member prompt <agent-name> --text \"...\"|--file FILE")
-		return 0
-	}
-	project, team, err := resolveLeadTeam(fs)
-	if err != nil {
-		return fail(err)
-	}
-	agent, err := memberAgentArg(fs)
-	if err != nil {
-		return fail(err)
-	}
-	member, err := store.LoadMember(project.Key, team.ID, agent)
-	if err != nil {
-		return fail(err)
-	}
-	text := strings.TrimSpace(fs.value("text"))
-	if file := strings.TrimSpace(fs.value("file")); file != "" {
-		data, err := os.ReadFile(sysutil.ExpandHome(file))
-		if err != nil {
-			return fail(err)
-		}
-		text = strings.TrimSpace(string(data))
-	}
-	if text == "" {
-		return fail(fmt.Errorf("--text or --file is required"))
-	}
-	if herdr.Agent(agent) == nil {
-		return fail(fmt.Errorf("member agent %s is missing; run weeco member status %s", agent, agent))
-	}
-	if err := herdr.AgentPrompt(agent, text, false, 0); err != nil {
-		return fail(err)
-	}
-	_ = store.WithLock(project.Key, func() error {
-		return store.Append(project.Key, "member", member.Key(), "member_prompted", "lead", nil)
-	})
-	fmt.Printf("prompted: %s (%s)\n", member.Name, agent)
-	return 0
-}
-
 func cmdMemberAccept(args []string) int {
 	fs, err := parseFlags(args, map[string]bool{"project": true, "team": true, "agent": true, "note": true})
 	if err != nil {
@@ -548,7 +462,7 @@ func cmdMemberRework(args []string) int {
 	prompt := fmt.Sprintf("LEAD REVIEW: rework required.\n\nIssues:\n%s\n\nUpdate your report: %s\nWhen done, write the report and stop.", issues, member.ReportPath)
 	if err := herdr.AgentPrompt(agent, prompt, false, 0); err != nil {
 		fmt.Printf("warning: could not prompt member: %v\n", err)
-		fmt.Printf("prompt it in pane %s, or use weeco member prompt\n", orDash(member.PaneID))
+		fmt.Printf("prompt it in pane %s\n", orDash(member.PaneID))
 	}
 	fmt.Printf("rework: %s (%s)\nissues: %s\n", member.Name, agent, issues)
 	return 0

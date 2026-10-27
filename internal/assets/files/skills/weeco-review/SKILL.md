@@ -42,7 +42,18 @@ weeco team status T-...
 
 > 0.8 之前招募的团队可能没有 member 记录（员工是 subagent）。这类团队按 `result.md` 的成员表验收，不要求 member pane；0.8 起新团队使用 pane 模式。
 
-4. 看实际交付物。
+4. 按“最小证据包”验收，不能只看 `result.md`：
+
+- 合同、result、成员表齐全；成员均为 accepted/closed。
+- 工作区/分支/commit/tree hash；`git status --porcelain` 为空。
+- 验收命令、环境、输出；命令针对当前树。
+- 真实关键路径 + 一个失败路径。
+- 交付物/证据清单、哈希；证据与验收项一一对应，截图/日志不重复。
+- 范围：设计/计划/合同未改；无越界文件、密钥、额外依赖。
+- 测试质量：bug 修复有回归测试；关键测试抽查“故意破坏时会不会失败”。
+- 未验证项/剩余风险。
+- 经验：项目根 `docs/weeco/lessons.md` 已读；result 有经验候选/已应用 lessons/无新经验原因；本次验收/返工已更新。
+- 高风险：独立 review 团队的报告、发现项/严重级别/证据。
 
 5. 如果合同有 `acceptance.json`：
 
@@ -53,10 +64,11 @@ weeco team check T-...
 6. 通过：
 
 ```bash
-weeco team accept T-... --note "验收依据：..."
+weeco team accept T-... --note "验收依据：..." --lessons-updated
+# 或：--no-lessons
 ```
 
-`accept` 默认关闭整个团队 tab（负责人 + 所有员工 pane）并记录解散；worktree 保留。
+`accept` 默认关闭整个团队 tab（负责人 + 所有员工 pane）并记录解散；worktree 保留。它会写 `acceptance.md`，并记录 lessons 是否更新。
 
 7. 不通过：
 
@@ -128,6 +140,36 @@ weeco status R-...
 ```
 
 加载 `next_skill` 指向的阶段 skill。
+
+## 验收结论模板
+
+accept 时把以下内容写入 `--note`；工具会同时写团队目录下的 `acceptance.md`：
+
+```text
+结论：accept
+合同/基线：
+已验证：
+未验证/剩余风险：
+范围检查：
+证据：
+```
+
+## 返工问题模板
+
+`--issues` 至少写：
+
+```text
+现象：
+期望：
+复现/证据：
+影响范围：
+严重级别：
+验收方式：
+```
+
+## 停止
+
+同一问题 2 轮无新证据、合同/范围冲突、安全/数据/合并风险：停止，不继续重试。
 
 ## 验收规则
 

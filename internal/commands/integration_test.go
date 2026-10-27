@@ -148,7 +148,7 @@ func TestCompanyLifecycle(t *testing.T) {
 	if !check.Passed {
 		t.Fatalf("check did not pass: %+v", check)
 	}
-	writeTestFile(t, filepath.Join(teamDir, "result.md"), "# Result\n\nv1\n")
+	writeTestFile(t, filepath.Join(teamDir, "result.md"), "# Result\n\n## 经验候选\n- 无新经验（原因）：test\n\nv1\n")
 	if code := Run([]string{"lead", "submit"}); code != 0 {
 		t.Fatalf("lead submit failed: %d", code)
 	}
@@ -169,19 +169,26 @@ func TestCompanyLifecycle(t *testing.T) {
 	if sysutil.FileExists(filepath.Join(teamDir, "check.json")) {
 		t.Fatal("rework should invalidate the previous check")
 	}
-	writeTestFile(t, filepath.Join(teamDir, "result.md"), "# Result\n\nv2 with X\n")
+	writeTestFile(t, filepath.Join(teamDir, "result.md"), "# Result\n\n## 经验候选\n- 无新经验（原因）：test\n\nv2 with X\n")
 	if code := Run([]string{"lead", "submit"}); code != 0 {
 		t.Fatalf("second lead submit failed: %d", code)
 	}
 	if code := Run([]string{"team", "check", teamID}); code != 0 {
 		t.Fatalf("second team check failed: %d", code)
 	}
-	if code := Run([]string{"team", "accept", teamID, "--note", "reviewed the contract and result"}); code != 0 {
+	if code := Run([]string{"team", "accept", teamID, "--note", "reviewed the contract and result", "--lessons-updated"}); code != 0 {
 		t.Fatalf("team accept failed: %d", code)
 	}
 	team, _ = store.LoadTeam(project.Key, teamID)
 	if team.State != model.TeamDisbanded {
 		t.Fatalf("state after accept = %s, want disbanded", team.State)
+	}
+	acceptanceData, err := os.ReadFile(filepath.Join(teamDir, "acceptance.md"))
+	if err != nil {
+		t.Fatalf("acceptance.md missing: %v", err)
+	}
+	if !strings.Contains(string(acceptanceData), "reviewed the contract and result") || !strings.Contains(string(acceptanceData), "lessons: updated") {
+		t.Fatalf("acceptance.md missing note:\n%s", acceptanceData)
 	}
 	st = fakeHerdrState{}
 	if err := sysutil.ReadJSON(statePath, &st); err != nil {
@@ -313,6 +320,16 @@ func TestMemberPaneLifecycle(t *testing.T) {
 	}
 	t.Setenv("HERDR_PANE_ID", team.PaneID)
 	teamDir := store.TeamDir(project.Key, teamID)
+	for _, args := range [][]string{
+		{"requirement", "list"},
+		{"requirement", "show", reqID},
+		{"team", "list"},
+		{"team", "status", teamID},
+	} {
+		if code := Run(args); code != 0 {
+			t.Fatalf("%v failed: %d", args, code)
+		}
+	}
 	writeTestFile(t, filepath.Join(root, "task-backend.md"), "# 林知远任务\n\n后端设计。\n")
 	writeTestFile(t, filepath.Join(root, "task-frontend.md"), "# 沈砚秋任务\n\n前端设计。\n")
 
@@ -389,6 +406,14 @@ func TestMemberPaneLifecycle(t *testing.T) {
 		t.Fatalf("second member pane is not in the team tab")
 	}
 
+	for _, args := range [][]string{
+		{"lead", "status"},
+		{"member", "status", "lin-zhiyuan"},
+	} {
+		if code := Run(args); code != 0 {
+			t.Fatalf("%v failed: %d", args, code)
+		}
+	}
 	if code := Run([]string{"member", "wait", "--all", "--timeout", "5"}); code != 0 {
 		t.Fatalf("member wait --all failed: %d", code)
 	}

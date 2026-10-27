@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -227,7 +228,7 @@ func cmdRequirementClose(args []string) int {
 		return fail(err)
 	}
 	if helpRequested(fs) {
-		fmt.Println("usage: weeco requirement close R-... [--remove-worktree] [--force]")
+		fmt.Println("usage: weeco requirement close R-... [--remove-worktree] [--lessons-reviewed] [--force]")
 		return 0
 	}
 	reqID, err := fs.positional(0, "requirement")
@@ -270,11 +271,21 @@ func cmdRequirementClose(args []string) int {
 			fmt.Printf("workspace is external and was left in place: %s\n", req.Workspace)
 		}
 	}
+	lessonsReviewed := fs.bool("lessons-reviewed")
+	if !lessonsReviewed {
+		lessonsPath := filepath.Join(project.Root, "docs", "weeco", "lessons.md")
+		if sysutil.FileExists(lessonsPath) {
+			fmt.Printf("warning: lessons not marked reviewed: %s (pass --lessons-reviewed)\n", lessonsPath)
+		} else {
+			fmt.Println("warning: no docs/weeco/lessons.md; pass --lessons-reviewed only if there is nothing to record")
+		}
+	}
 	if err := store.WithLock(project.Key, func() error {
 		return store.Append(project.Key, "requirement", reqID, "requirement_closed", "boss", map[string]any{
-			"remove_worktree": fs.bool("remove-worktree"),
-			"removed":         removed,
-			"workspace":       req.Workspace,
+			"remove_worktree":  fs.bool("remove-worktree"),
+			"removed":          removed,
+			"workspace":        req.Workspace,
+			"lessons_reviewed": lessonsReviewed,
 		})
 	}); err != nil {
 		return fail(err)

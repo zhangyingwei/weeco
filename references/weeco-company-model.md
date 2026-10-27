@@ -40,7 +40,8 @@ Herdr agent 名只接受 ASCII，因此每个员工另有一个 ASCII agent name
 - 返工期间团队不解散。
 - 老板验收不合格，默认退回原团队，不重新招团队。
 - 只有团队确实不胜任、负责人丢失或方向错误，才换团队。
-- 老板不能只听说“done”；必须按合同看结果和证据。
+- 老板不能只听说“done”；必须按合同看结果和证据：合同、树/commit、命令输出、真实路径、工件哈希、范围；不能只看 `result.md`。
+- 高风险需求（安全/数据/公共 API/支付/生产发布/跨模块核心改动）强制独立 review 团队；review 团队只读，老板仍做最终验收。
 - 负责人用 `weeco member accept/rework` 验收员工，成员状态进入台账；`lead submit` 会检查没有 active/blocked/rework 的成员。
 
 ## 4. 实体
@@ -108,12 +109,20 @@ active → accepted
 `contract.md` 是老板写的任务书，负责人只读。至少包含：
 
 - 目标
+- 非目标
 - 交付物
+- 完成定义（DoD）
 - 验收标准
-- 约束
-- 工作区
+- 证据要求
+- 约束（含开工前读项目根 `docs/weeco/lessons.md`）
+- 停止与升级
+- 返工上限
+- 工作区/分支/base commit
 - 团队人数（不含负责人；工具不设上限）和角色
 - 成员命名/角色约束（可选）
+- 验收权限
+- 独立 review（高风险）
+- 合并/交付
 - 拆分建议
 
 合同在 `team recruit` 时复制到团队目录，负责人只读。老板要改合同，先 `team disband` 后用新合同重招；如果只是返工要求变化，可以用 `team rework --issues` 写明，但合同文件不会自动改。负责人不能自行放宽。合同只是 Markdown，不强制任何字段格式。
@@ -127,15 +136,19 @@ active → accepted
   "commands": [
     {"id": "A1", "cmd": "npm test", "expect_exit": 0, "timeout_s": 300}
   ],
-  "artifacts": ["dist/app"]
+  "artifacts": ["dist/app"],
+  "required_files": ["result.md"],
+  "require_clean_tree": true,
+  "record_git": true
 }
 ```
 
-`weeco team check T-...` 会在团队工作区运行命令、检查工件，写 `check.json`。
+`weeco team check T-...` 会在团队工作区运行命令、检查工件，写 `check.json`；`record_git` 记录 commit/tree/branch/status，`require_clean_tree` 要求工作区干净，`required_files` 检查文件并记录 SHA-256。
 
 - 没有 `acceptance.json` 也能验收，老板人工评审。
 - `team rework` 会删除旧 `check.json`，返工后必须重新 check。
-- `team accept` 在 `acceptance.json` 存在时要求 `check.json` 存在且通过（`--force` 可覆盖）。
+- `team accept` 在 `acceptance.json` 存在时要求 `check.json` 存在且通过（`--force` 可覆盖），并写团队目录下的 `acceptance.md`。
+- 验收/返工后老板维护项目根 `docs/weeco/lessons.md`；`team accept` 记录 `--lessons-updated` / `--no-lessons`，`requirement close --lessons-reviewed` 表示已检查。
 
 这不是旧的 `verify`：没有强制 checks.json、没有 commit trailer、没有 revision 预算/缓存、没有 base/head 字段。
 
@@ -168,7 +181,7 @@ weeco team list|status|wait|nudge|repair|check|accept|rework|answer|disband
 
 ```bash
 weeco member recruit --name "正式名字" --agent ascii-name --role "角色" --task FILE
-weeco member list|status|wait|prompt|accept|rework|close
+weeco member status|wait|accept|rework|close
 weeco lead status|submit|ask
 ```
 
@@ -210,6 +223,7 @@ weeco lead status|submit|ask
     result.md
     acceptance.json      # 可选
     check.json           # team check 生成
+    acceptance.md        # 老板验收记录
     review-<n>.md
     lead-system-prompt.md  # 负责人 system prompt，经 --append-system-prompt-file 传入
     members/<agent-name>/
@@ -222,6 +236,7 @@ weeco lead status|submit|ask
 
 ```text
 ~/.weeco/worktrees/<key>/<R-id>/
+docs/weeco/lessons.md           # 项目根；老板唯一写者
 ~/.weeco/panes/<pane>.json      # pane -> project/team；负责人和员工上下文
 ```
 

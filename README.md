@@ -42,7 +42,7 @@ weeco init
 - 阶段 skill：`weeco-requirements`、`weeco-design`、`weeco-plan`、`weeco-implement`、`weeco-review`、`weeco-deliver`
 - 团队负责人：`weeco-team-lead`
 - slash command：`/weeco`
-- 模板：`~/.weeco/templates/{contract.md,result.md,acceptance.json}`
+- 模板：`~/.weeco/templates/{contract.md,result.md,acceptance.json,lessons.md}`
 
 ## 命令
 
@@ -77,7 +77,7 @@ weeco team list|status|wait|nudge|repair|check|accept|rework|answer|disband
 
 ```bash
 weeco member recruit --name "正式名字" --agent ascii-name --role "角色" --task <task-file>
-weeco member list|status|wait|prompt|accept|rework|close
+weeco member status|wait|accept|rework|close
 weeco lead status|submit|ask
 ```
 
@@ -93,13 +93,13 @@ weeco lead status|submit|ask
 成员：active → accepted / rework / closed / lost
 ```
 
-- `team accept` 默认关闭整个团队 tab（负责人 + 所有员工 pane）并记录解散；worktree 保留。
+- `team accept` 默认关闭整个团队 tab（负责人 + 所有员工 pane）并记录解散；worktree 保留；同时写 `acceptance.md`，并记录 lessons 是否更新。
 - `team rework` 把问题退回原团队，并清掉旧检查结果；返工后必须重新 check。
 - `lead submit` 要求负责人先接受或关闭所有员工。
 - `team wait` 在后台运行，等待 submitted/blocked/lost 或超时；不会因为负责人 idle 就返回。
 - 负责人在团队 pane 里运行 `weeco lead submit/ask` 时，通过 pane 上下文自动解析 project/team，不用重复带 flags。
 - 负责人 idle 但没提交时用 `team nudge`；负责人丢失或状态不一致时用 `team repair`。
-- `requirement close --remove-worktree` 才删除需求级 worktree。
+- `requirement close --remove-worktree --lessons-reviewed` 才删除需求级 worktree；不加 `--lessons-reviewed` 会警告。
 
 ## 目录
 

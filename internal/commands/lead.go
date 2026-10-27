@@ -3,6 +3,7 @@ package commands
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -70,7 +71,7 @@ func cmdLeadStatus(args []string) int {
 		fmt.Printf("boss issues: %s\n", team.LastIssues)
 	}
 	fmt.Println("commands:")
-	fmt.Println("  weeco member list")
+	fmt.Println("  weeco member status <agent>")
 	fmt.Println("  weeco member wait --all")
 	fmt.Println("  weeco lead submit")
 	fmt.Println("  weeco lead ask --question \"...\"")
@@ -84,7 +85,7 @@ func cmdLeadSubmit(args []string) int {
 		return fail(err)
 	}
 	if helpRequested(fs) {
-		fmt.Println("usage: weeco lead submit [--team T-...] [--project PATH]")
+		fmt.Println("usage: weeco lead submit [--team T-...] [--project PATH] [--no-lessons]")
 		return 0
 	}
 	project, team, err := resolveLeadTeam(fs)
@@ -113,10 +114,22 @@ func cmdLeadSubmit(args []string) int {
 	if err != nil {
 		return fail(err)
 	}
+	lessons := "present"
+	if data, err := os.ReadFile(resultPath); err != nil {
+		return fail(err)
+	} else if !strings.Contains(string(data), "经验候选") {
+		lessons = "missing"
+	}
+	if fs.bool("no-lessons") {
+		lessons = "none"
+	} else if lessons == "missing" {
+		fmt.Println("warning: result.md has no 经验候选 section; add it or rerun with --no-lessons")
+	}
 	if err := store.WithLock(project.Key, func() error {
 		return store.Append(project.Key, "team", team.ID, "team_submitted", "lead", map[string]any{
 			"result_path": resultPath,
 			"result_sha":  digest,
+			"lessons":     lessons,
 		})
 	}); err != nil {
 		return fail(err)

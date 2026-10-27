@@ -28,9 +28,10 @@ weeco requirement show R-...
 ## 关闭需求
 
 ```bash
-weeco requirement close R-... --remove-worktree
+weeco requirement close R-... --remove-worktree --lessons-reviewed
 ```
 
+- `--lessons-reviewed` 表示已检查/更新 `docs/weeco/lessons.md`；不加会警告。
 - 只有这一步会删除工具创建的需求级 git worktree
 - 外部 `--path` 工作区不会被删除
 - 团队目录和 ledger 保留，便于追溯

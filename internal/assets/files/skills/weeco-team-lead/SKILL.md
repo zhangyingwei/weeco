@@ -28,7 +28,6 @@ description: Use when leading a weeco team: recruit employees as Herdr agents in
 
 ```bash
 weeco lead status
-weeco member list
 ```
 
 从团队 pane 里，weeco 会用 `HERDR_PANE_ID` 自动解析 project 和 team。
@@ -39,6 +38,11 @@ weeco lead status --project <project-root> --team <team-id>
 ```
 
 然后写团队计划：怎么拆分、需要哪些角色、每个员工的交付物和验收标准。
+
+## 开工前：读 lessons
+
+- 读项目根 `docs/weeco/lessons.md`（合同给出绝对路径；若存在）。
+- 在团队计划和员工任务里写明适用的 lessons。
 
 ## 成员命名
 
@@ -101,7 +105,6 @@ weeco member recruit \
 ## 监督和初验
 
 ```bash
-weeco member list
 weeco member status lin-yi
 weeco member wait lin-yi
 weeco member wait --all
@@ -142,6 +145,7 @@ team size 不够或任务超出合同：用 `weeco lead ask` 向老板提问，�
    - 交付物
    - 证据
    - 未解决风险
+   - 经验候选：已应用 lessons / 新候选 / 无新经验原因
    - 给老板的说明
 3. 如果合同有 `acceptance.json`，运行：
 
@@ -170,9 +174,10 @@ weeco lead submit --project <project-root> --team <team-id>
 1. 读 `weeco lead status` 里的 issues；
 2. 把问题拆成员工返工任务；
 3. 用 `weeco member rework <agent> --issues "..."` 发给对应员工，或关闭后换人；
-4. 重新验收员工；
-5. 更新 `result.md`；
-6. 重新 `weeco lead submit`。
+4. 记录根因和 lesson 候选；同类问题再次出现时，在 `result.md` 标注；
+5. 重新验收员工；
+6. 更新 `result.md`；
+7. 重新 `weeco lead submit`。
 
 返工期间团队不解散。
 

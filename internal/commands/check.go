@@ -3,6 +3,7 @@ package commands
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -13,8 +14,11 @@ import (
 )
 
 type acceptanceFile struct {
-	Commands  []acceptanceCommand `json:"commands"`
-	Artifacts []string            `json:"artifacts"`
+	Commands         []acceptanceCommand `json:"commands"`
+	Artifacts        []string            `json:"artifacts"`
+	RequiredFiles    []string            `json:"required_files,omitempty"`
+	RequireCleanTree bool                `json:"require_clean_tree,omitempty"`
+	RecordGit        bool                `json:"record_git,omitempty"`
 }
 
 type acceptanceCommand struct {
@@ -41,12 +45,22 @@ type checkArtifactResult struct {
 	SHA256 string `json:"sha256,omitempty"`
 }
 
+type checkGitResult struct {
+	Commit string `json:"commit,omitempty"`
+	Tree   string `json:"tree,omitempty"`
+	Branch string `json:"branch,omitempty"`
+	Status string `json:"status,omitempty"`
+	Clean  bool   `json:"clean"`
+}
+
 type checkResult struct {
 	TeamID    string                `json:"team_id"`
 	Workspace string                `json:"workspace"`
 	Passed    bool                  `json:"passed"`
+	Git       *checkGitResult       `json:"git,omitempty"`
 	Commands  []checkCommandResult  `json:"commands,omitempty"`
 	Artifacts []checkArtifactResult `json:"artifacts,omitempty"`
+	Files     []checkArtifactResult `json:"files,omitempty"`
 	At        string                `json:"at"`
 }
 
@@ -78,8 +92,9 @@ func cmdTeamCheck(args []string) int {
 		fmt.Println("no acceptance.json; manual review only")
 		return 0
 	}
-	if len(acceptance.Commands) == 0 && len(acceptance.Artifacts) == 0 {
-		fmt.Println("acceptance.json has no commands or artifacts; manual review only")
+	if len(acceptance.Commands) == 0 && len(acceptance.Artifacts) == 0 &&
+		len(acceptance.RequiredFiles) == 0 && !acceptance.RequireCleanTree && !acceptance.RecordGit {
+		fmt.Println("acceptance.json has no checks; manual review only")
 		return 0
 	}
 	workDir := team.Workspace
@@ -90,6 +105,15 @@ func cmdTeamCheck(args []string) int {
 		return fail(fmt.Errorf("workspace does not exist: %s", workDir))
 	}
 	result := checkResult{TeamID: teamID, Workspace: workDir, Passed: true, At: sysutil.NowISO()}
+	gitState, gitErr := readGitState(workDir)
+	if gitErr == nil {
+		result.Git = gitState
+		if acceptance.RequireCleanTree && !gitState.Clean {
+			result.Passed = false
+		}
+	} else if acceptance.RequireCleanTree || acceptance.RecordGit {
+		return fail(fmt.Errorf("git evidence requested but workspace is not a readable git repo: %v", gitErr))
+	}
 	for i, check := range acceptance.Commands {
 		id := strings.TrimSpace(check.ID)
 		if id == "" {
@@ -147,6 +171,28 @@ func cmdTeamCheck(args []string) int {
 		}
 		result.Artifacts = append(result.Artifacts, artifact)
 	}
+	for _, raw := range acceptance.RequiredFiles {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+		if filepath.IsAbs(raw) {
+			return fail(fmt.Errorf("required file must be relative: %s", raw))
+		}
+		path := filepath.Join(workDir, raw)
+		file := checkArtifactResult{Path: raw}
+		if info, err := os.Stat(path); err == nil && !info.IsDir() {
+			digest, err := sysutil.SHA256File(path)
+			if err != nil {
+				return fail(err)
+			}
+			file.Exists = true
+			file.SHA256 = digest
+		} else {
+			result.Passed = false
+		}
+		result.Files = append(result.Files, file)
+	}
 	checkPath := filepath.Join(teamDir, "check.json")
 	if err := sysutil.WriteJSON(checkPath, result); err != nil {
 		return fail(err)
@@ -173,7 +219,8 @@ func ensureChecksPassed(project model.Project, team model.Team, force bool) erro
 	if err != nil {
 		return err
 	}
-	if !ok || (len(acceptance.Commands) == 0 && len(acceptance.Artifacts) == 0) {
+	if !ok || (len(acceptance.Commands) == 0 && len(acceptance.Artifacts) == 0 &&
+		len(acceptance.RequiredFiles) == 0 && !acceptance.RequireCleanTree && !acceptance.RecordGit) {
 		return nil
 	}
 	checkPath := filepath.Join(teamDir, "check.json")
@@ -188,7 +235,61 @@ func ensureChecksPassed(project model.Project, team model.Team, force bool) erro
 	if !result.Passed {
 		return fmt.Errorf("team check failed; rework the team or use --force to override")
 	}
+	if acceptance.RequireCleanTree && (result.Git == nil || !result.Git.Clean) {
+		return fmt.Errorf("acceptance requires a clean git tree; rerun: weeco team check %s", team.ID)
+	}
+	if acceptance.RecordGit && result.Git == nil {
+		return fmt.Errorf("acceptance requires git evidence; rerun: weeco team check %s", team.ID)
+	}
+	if countNonEmpty(acceptance.RequiredFiles) != len(result.Files) {
+		return fmt.Errorf("acceptance requires file evidence; rerun: weeco team check %s", team.ID)
+	}
 	return nil
+}
+
+func countNonEmpty(values []string) int {
+	n := 0
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			n++
+		}
+	}
+	return n
+}
+
+func readGitState(dir string) (*checkGitResult, error) {
+	run := func(args ...string) (string, error) {
+		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+		out, err := cmd.CombinedOutput()
+		return strings.TrimSpace(string(out)), err
+	}
+	inside, err := run("rev-parse", "--is-inside-work-tree")
+	if err != nil || inside != "true" {
+		return nil, fmt.Errorf("not a git worktree")
+	}
+	commit, err := run("rev-parse", "HEAD")
+	if err != nil {
+		return nil, fmt.Errorf("git HEAD: %w", err)
+	}
+	tree, err := run("rev-parse", "HEAD^{tree}")
+	if err != nil {
+		return nil, fmt.Errorf("git tree: %w", err)
+	}
+	branch, err := run("rev-parse", "--abbrev-ref", "HEAD")
+	if err != nil {
+		return nil, fmt.Errorf("git branch: %w", err)
+	}
+	status, err := run("status", "--porcelain")
+	if err != nil {
+		return nil, fmt.Errorf("git status: %w", err)
+	}
+	return &checkGitResult{
+		Commit: commit,
+		Tree:   tree,
+		Branch: branch,
+		Status: status,
+		Clean:  status == "",
+	}, nil
 }
 
 func checkSummary(result checkResult) string {
@@ -198,6 +299,13 @@ func checkSummary(result checkResult) string {
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "check: %s (workspace %s)", label, result.Workspace)
+	if result.Git != nil {
+		clean := "dirty"
+		if result.Git.Clean {
+			clean = "clean"
+		}
+		fmt.Fprintf(&b, "\n  git: %s (%s) %s", shorten(result.Git.Commit), result.Git.Branch, clean)
+	}
 	for _, cmd := range result.Commands {
 		mark := "FAIL"
 		if cmd.Passed {
@@ -217,7 +325,21 @@ func checkSummary(result checkResult) string {
 		}
 		fmt.Fprintf(&b, "\n  artifact %s: %s", artifact.Path, mark)
 	}
+	for _, file := range result.Files {
+		mark := "missing"
+		if file.Exists {
+			mark = "ok"
+		}
+		fmt.Fprintf(&b, "\n  file %s: %s", file.Path, mark)
+	}
 	return b.String()
+}
+
+func shorten(s string) string {
+	if len(s) > 12 {
+		return s[:12]
+	}
+	return s
 }
 
 func lastLines(text string, n int) string {

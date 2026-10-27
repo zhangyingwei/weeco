@@ -22,6 +22,7 @@ const (
 	ContractTemplate   = "files/templates/contract.md"
 	ResultTemplate     = "files/templates/result.md"
 	AcceptanceTemplate = "files/templates/acceptance.json"
+	LessonsTemplate    = "files/templates/lessons.md"
 	ClaudeMDBlock      = "files/claude-md-block.md"
 )
 

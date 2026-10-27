@@ -146,6 +146,7 @@ func cmdInstall(args []string) int {
 		{"contract.md", assets.ContractTemplate},
 		{"result.md", assets.ResultTemplate},
 		{"acceptance.json", assets.AcceptanceTemplate},
+		{"lessons.md", assets.LessonsTemplate},
 	}
 	var templatePaths []string
 	for _, t := range templates {

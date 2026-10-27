@@ -6,7 +6,7 @@ import (
 )
 
 // Version is the CLI version. Override at build time with -ldflags.
-var Version = "0.8.1"
+var Version = "0.9.0"
 
 const usageText = `weeco: a company/team control plane for Herdr + Claude
 
@@ -19,7 +19,7 @@ commands:
   workspace     create
   team          recruit | list | status | wait | nudge | repair | check | accept | rework | answer | disband
   lead          status | submit | ask
-  member        recruit | list | status | wait | prompt | accept | rework | close
+  member        recruit | status | wait | accept | rework | close
   install       install the binary, skills, slash command and templates
   doctor        check claude, herdr and the weeco setup
   version       print the version

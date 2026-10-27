@@ -133,7 +133,7 @@ weeco team recruit --requirement R-20261026-01 \
   --purpose implement --contract implement.md --acceptance acceptance.json --size 3
 ```
 
-它会被复制到团队目录，`team check` 在那里运行。
+它会被复制到团队目录，`team check` 在那里运行。可选字段：`required_files`（检查文件并记录 SHA-256）、`require_clean_tree`（要求 git 工作区干净）、`record_git`（记录 commit/tree/branch/status）。
 
 ## 5. 等负责人提交
 
@@ -165,6 +165,8 @@ weeco team status T-20261026-01
 - 负责人写的 `result.md`
 - 交付物
 
+老板不能只看 `result.md`。至少检查：合同/result/成员表；工作区/分支/commit；`git status` 干净；验收命令/环境/输出；真实关键路径 + 一个失败路径；工件/证据哈希；范围是否越界；未验证项/剩余风险。
+
 如果合同目录里有 `acceptance.json`：
 
 ```bash
@@ -174,10 +176,10 @@ weeco team check T-20261026-01
 通过：
 
 ```bash
-weeco team accept T-20261026-01 --note "检查了需求覆盖和交互说明"
+weeco team accept T-20261026-01 --note "检查了需求覆盖和交互说明" --lessons-updated
 ```
 
-`accept` 默认关闭整个团队 tab（负责人 + 所有员工 pane），团队进入 `disbanded`；worktree 不会删。
+`accept` 默认关闭整个团队 tab（负责人 + 所有员工 pane），团队进入 `disbanded`；worktree 不会删。它会写 `acceptance.md`，并记录 lessons 是否更新（`--lessons-updated` / `--no-lessons`）。
 
 不通过：
 
@@ -206,7 +208,7 @@ weeco workspace create --requirement R-20261026-01 --base main
 全部团队验收后，向客户交付，然后：
 
 ```bash
-weeco requirement close R-20261026-01 --remove-worktree
+weeco requirement close R-20261026-01 --remove-worktree --lessons-reviewed
 ```
 
 只有这一步会删除需求级 worktree。外部 `--path` 工作区不会被删除。

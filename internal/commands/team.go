@@ -59,13 +59,13 @@ func cmdTeam(args []string) int {
 func cmdTeamRecruit(args []string) int {
 	fs, err := parseFlags(args, map[string]bool{
 		"project": true, "requirement": true, "purpose": true, "contract": true,
-		"acceptance": true, "size": true, "id": true, "timeout": true,
+		"acceptance": true, "size": true, "id": true,
 	})
 	if err != nil {
 		return fail(err)
 	}
 	if helpRequested(fs) {
-		fmt.Println("usage: weeco team recruit --requirement R-... --contract FILE --size N [--acceptance FILE] [--purpose NAME] [--id T-...] [--allow-root] [--wait]")
+		fmt.Println("usage: weeco team recruit --requirement R-... --contract FILE --size N [--acceptance FILE] [--purpose NAME] [--id T-...] [--allow-root]")
 		return 0
 	}
 	reqID := fs.value("requirement")
@@ -265,7 +265,7 @@ Read the contract and the weeco-team-lead skill. You and every employee are Herd
 
 From this team pane, weeco resolves the project and team from HERDR_PANE_ID:
   weeco member recruit --name "..." --agent ascii-name --role "..." --task <task-file>
-  weeco member list
+  weeco lead status
   weeco lead submit
   weeco lead ask --question "..."
 If auto-context is unavailable, use the fallback:
@@ -292,9 +292,6 @@ Do not edit the contract. Do not accept the team yourself; the boss accepts.
 	fmt.Printf("team:      %s\nrequirement: %s\nlead:      %s\npane:      %s\ntab:       %s\nworkspace: %s\ncontract:  %s\n",
 		teamID, reqID, leadAgent, paneID, tabID, workspacePath, contractPath)
 	fmt.Printf("next:      weeco team wait %s --timeout 1800  (run in the background)\n", teamID)
-	if fs.bool("wait") {
-		return waitForTeam(project, teamID, parseTimeout(fs.value("timeout"), store.LoadConfig().WaitTimeoutS))
-	}
 	return 0
 }
 
@@ -394,6 +391,9 @@ func cmdTeamStatus(args []string) int {
 		}
 	} else {
 		fmt.Println("members:     0 (no member panes; legacy subagent team or none recruited yet)")
+	}
+	if team.ReworkCount > 0 {
+		fmt.Printf("rework:      %d\n", team.ReworkCount)
 	}
 	if team.BlockedQuestion != "" {
 		fmt.Printf("question:    %s\n", team.BlockedQuestion)
@@ -624,13 +624,38 @@ func asStringAny(v any) string {
 	return ""
 }
 
+func writeAcceptanceRecord(project model.Project, team model.Team, note, lessons string) (string, error) {
+	teamDir := store.TeamDir(project.Key, team.ID)
+	checkPath := filepath.Join(teamDir, "check.json")
+	path := filepath.Join(teamDir, "acceptance.md")
+	content := fmt.Sprintf(`# Boss acceptance
+
+- team: %s
+- requirement: %s
+- accepted_at: %s
+- result: %s
+- result_sha: %s
+- check: %s
+- lessons: %s
+- note: %s
+
+## Note
+
+%s
+`, team.ID, team.RequirementID, sysutil.NowISO(), orDash(team.ResultPath), orDash(team.ResultSHA), presence(checkPath), lessons, note, note)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		return "", fmt.Errorf("write acceptance record: %w", err)
+	}
+	return path, nil
+}
+
 func cmdTeamAccept(args []string) int {
 	fs, err := parseFlags(args, map[string]bool{"project": true, "note": true})
 	if err != nil {
 		return fail(err)
 	}
 	if helpRequested(fs) {
-		fmt.Println("usage: weeco team accept T-... --note \"what you checked\" [--force] [--keep]")
+		fmt.Println("usage: weeco team accept T-... --note \"what you checked\" [--lessons-updated|--no-lessons] [--force] [--keep]")
 		return 0
 	}
 	teamID, err := fs.positional(0, "team")
@@ -670,13 +695,27 @@ func cmdTeamAccept(args []string) int {
 			return fail(fmt.Errorf("result.md changed after submit; ask the lead to submit again, or use --force"))
 		}
 	}
+	lessons := "missing"
+	if fs.bool("lessons-updated") {
+		lessons = "updated"
+	} else if fs.bool("no-lessons") {
+		lessons = "none"
+	} else {
+		fmt.Println("warning: lessons not recorded; pass --lessons-updated or --no-lessons")
+	}
 	if err := ensureChecksPassed(project, team, fs.bool("force")); err != nil {
+		return fail(err)
+	}
+	acceptancePath, err := writeAcceptanceRecord(project, team, note, lessons)
+	if err != nil {
 		return fail(err)
 	}
 	if err := store.WithLock(project.Key, func() error {
 		return store.Append(project.Key, "team", teamID, "team_accepted", "boss", map[string]any{
-			"note":        note,
-			"result_path": team.ResultPath,
+			"note":            note,
+			"result_path":     team.ResultPath,
+			"acceptance_path": acceptancePath,
+			"lessons":         lessons,
 		})
 	}); err != nil {
 		return fail(err)
