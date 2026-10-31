@@ -4,12 +4,10 @@ package sysutil
 
 import (
 	"bytes"
-	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -85,26 +83,6 @@ func Run(cmd []string, dir string, timeout time.Duration, extraEnv []string) (Ru
 	}
 }
 
-// RunChecked runs a command and turns a non-zero exit into an error.
-func RunChecked(cmd []string, dir string, timeout time.Duration) (RunResult, error) {
-	res, err := Run(cmd, dir, timeout, nil)
-	if err != nil {
-		return res, err
-	}
-	if res.ExitCode != 0 {
-		detail := strings.TrimSpace(res.Stderr)
-		if detail == "" {
-			detail = strings.TrimSpace(res.Stdout)
-		}
-		msg := fmt.Sprintf("command failed (%d): %s", res.ExitCode, strings.Join(cmd, " "))
-		if detail != "" {
-			msg += "\n" + detail
-		}
-		return res, fmt.Errorf("%s", msg)
-	}
-	return res, nil
-}
-
 // WriteJSON writes indented JSON atomically.
 func WriteJSON(path string, value any) error {
 	data, err := json.MarshalIndent(value, "", "  ")
@@ -167,34 +145,10 @@ func AtomicWrite(path string, data []byte) error {
 	return os.Rename(tmpName, path)
 }
 
-// SHA256File returns the hex digest of a file.
-func SHA256File(path string) (string, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(h.Sum(nil)), nil
-}
-
 // SHA256Bytes returns the hex digest of a byte slice.
 func SHA256Bytes(data []byte) string {
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:])
-}
-
-// SHA1Prefix returns the first n hex characters of SHA-1(text).
-func SHA1Prefix(text string, n int) string {
-	sum := sha1.Sum([]byte(text))
-	out := hex.EncodeToString(sum[:])
-	if n > len(out) {
-		n = len(out)
-	}
-	return out[:n]
 }
 
 // HomeDir returns the current user's home directory.
@@ -233,23 +187,5 @@ func AbsPath(path string) (string, error) {
 // NowISO returns the current time in RFC3339 form.
 func NowISO() string { return time.Now().Format(time.RFC3339) }
 
-// TodayStamp returns YYYYMMDD.
-func TodayStamp() string { return time.Now().Format("20060102") }
-
 // Itoa is a short alias used by command builders.
 func Itoa(n int) string { return strconv.Itoa(n) }
-
-// FileExists reports whether path exists.
-func FileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
-}
-
-// ParseISOTime parses RFC3339, falling back to now on error.
-func ParseISOTime(value string) time.Time {
-	t, err := time.Parse(time.RFC3339, value)
-	if err != nil {
-		return time.Now()
-	}
-	return t
-}

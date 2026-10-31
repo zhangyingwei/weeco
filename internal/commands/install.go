@@ -6,10 +6,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
-	"weeco/internal/assets"
 	"weeco/internal/store"
 	"weeco/internal/sysutil"
 )
@@ -18,66 +18,72 @@ type installManifest struct {
 	Version     string            `json:"version"`
 	Binary      string            `json:"binary"`
 	Skills      map[string]string `json:"skills"`
-	Command     string            `json:"command"`
-	Templates   []string          `json:"templates"`
+	SkillFiles  []string          `json:"skill_files,omitempty"`
+	Command     string            `json:"command,omitempty"`
+	Templates   []string          `json:"templates,omitempty"`
 	InstalledAt string            `json:"installed_at"`
 }
 
 func cmdInstall(args []string) int {
-	fs, err := parseFlags(args, map[string]bool{
-		"bin-dir": true, "skill-dir": true, "command-dir": true,
-	})
+	fs, err := parseFlags(args, map[string]bool{"bin-dir": true, "skill-dir": true})
 	if err != nil {
 		return fail(err)
 	}
+	for name := range fs.bools {
+		if name != "help" && name != "force" && name != "dry-run" {
+			return fail(fmt.Errorf("unknown install flag --%s", name))
+		}
+	}
 	if helpRequested(fs) {
-		fmt.Println("usage: weeco install [--bin-dir PATH] [--skill-dir PATH] [--command-dir PATH] [--force] [--dry-run]")
+		fmt.Println("usage: weeco install [--bin-dir PATH] [--skill-dir PATH] [--force] [--dry-run]")
 		return 0
 	}
-	dryRun := fs.bool("dry-run")
-	force := fs.bool("force")
-	bin := store.BinDir()
-	skills := store.SkillDir()
-	commands := store.CommandDir()
-	if v := fs.value("bin-dir"); v != "" {
-		bin = sysutil.ExpandHome(v)
+	if len(fs.positionals) != 0 {
+		return fail(fmt.Errorf("install does not accept positional arguments"))
 	}
-	if v := fs.value("skill-dir"); v != "" {
-		skills = sysutil.ExpandHome(v)
+	bin, skills := store.BinDir(), store.SkillDir()
+	if value := fs.value("bin-dir"); value != "" {
+		bin = sysutil.ExpandHome(value)
 	}
-	if v := fs.value("command-dir"); v != "" {
-		commands = sysutil.ExpandHome(v)
+	if value := fs.value("skill-dir"); value != "" {
+		skills = sysutil.ExpandHome(value)
 	}
-	ownedPaths := map[string]bool{}
-	var previous installManifest
-	if ok, _ := sysutil.ReadJSONOr(store.ManifestPath(), &previous); ok {
-		addOwned := func(p string) {
-			if p != "" {
-				ownedPaths[filepath.Clean(p)] = true
-			}
-		}
-		addOwned(previous.Binary)
-		for _, p := range previous.Skills {
-			addOwned(p)
-		}
-		addOwned(previous.Command)
-		for _, p := range previous.Templates {
-			addOwned(p)
-		}
+	if bin, err = filepath.Abs(bin); err != nil {
+		return fail(err)
 	}
-	if !dryRun {
-		if err := store.EnsureConfig(); err != nil {
-			return fail(err)
-		}
+	if skills, err = filepath.Abs(skills); err != nil {
+		return fail(err)
 	}
-	action := func(format string, a ...any) {
-		prefix := ""
+	dryRun, force := fs.bool("dry-run"), fs.bool("force")
+	action := func(format string, args ...any) {
 		if dryRun {
-			prefix = "(dry-run) "
+			format = "(dry-run) " + format
 		}
-		fmt.Printf(prefix+format+"\n", a...)
+		fmt.Printf(format+"\n", args...)
+	}
+	manifestPath := store.ManifestPath()
+	if err := checkInstallPath(manifestPath); err != nil {
+		return fail(err)
+	}
+	var previous installManifest
+	if _, err := sysutil.ReadJSONOr(manifestPath, &previous); err != nil {
+		return fail(err)
+	}
+	owned := map[string]bool{}
+	for _, path := range previous.Skills {
+		owned[filepath.Clean(path)] = true
+	}
+	for _, path := range previous.SkillFiles {
+		owned[filepath.Clean(path)] = true
+	}
+	files, err := skillFiles()
+	if err != nil {
+		return fail(err)
 	}
 	target := filepath.Join(bin, "weeco")
+	if err := checkInstallPath(target); err != nil {
+		return fail(err)
+	}
 	self, err := os.Executable()
 	if err != nil {
 		return fail(err)
@@ -85,29 +91,20 @@ func cmdInstall(args []string) int {
 	if resolved, err := filepath.EvalSymlinks(self); err == nil {
 		self = resolved
 	}
-	sameBinary := false
+	var sameBinary bool
 	if targetInfo, err := os.Stat(target); err == nil {
-		if selfInfo, err := os.Stat(self); err == nil && os.SameFile(targetInfo, selfInfo) {
-			sameBinary = true
+		if selfInfo, err := os.Stat(self); err == nil {
+			sameBinary = os.SameFile(targetInfo, selfInfo)
 		}
+		if !sameBinary && !force && previous.Binary != target && !isWeecoBinary(target) {
+			return fail(fmt.Errorf("conflict: existing non-weeco binary %s; move it away or use --force", target))
+		}
+	} else if !os.IsNotExist(err) {
+		return fail(err)
 	}
 	if sameBinary {
 		action("binary already in place: %s", target)
 	} else {
-		if linkInfo, err := os.Lstat(target); err == nil {
-			if linkInfo.Mode()&os.ModeSymlink != 0 {
-				action("replace symlink at %s", target)
-				if !dryRun {
-					if err := os.Remove(target); err != nil {
-						return fail(err)
-					}
-				}
-			} else if !force && !isWeecoBinary(target) {
-				fmt.Printf("refusing to overwrite existing non-weeco binary: %s\n", target)
-				fmt.Println("move it away first, or pass --force")
-				return 1
-			}
-		}
 		if !dryRun {
 			if err := copyFile(self, target); err != nil {
 				return fail(err)
@@ -115,60 +112,42 @@ func cmdInstall(args []string) int {
 		}
 		action("install binary: %s", target)
 	}
-	commandPath := filepath.Join(commands, "weeco.md")
-	skillPaths := map[string]string{}
-	for _, skill := range weecoSKills {
-		path := filepath.Join(skills, skill.name, "SKILL.md")
-		data, err := assets.Read(skill.asset)
+	manifest := installManifest{Version: Version, Binary: target, Skills: map[string]string{}, InstalledAt: sysutil.NowISO()}
+	wanted := map[string]bool{}
+	conflicts := false
+	for _, file := range files {
+		path := filepath.Join(skills, "weeco", file.name)
+		wanted[filepath.Clean(path)] = true
+		result, err := installFile(path, file.data, 0o644, force, dryRun, owned[filepath.Clean(path)])
 		if err != nil {
 			return fail(err)
 		}
-		result, err := installFile(path, data, 0o644, force, dryRun, skill.name, ownedPaths[filepath.Clean(path)])
-		if err != nil {
-			return fail(err)
+		action("%s: %s", path, result)
+		if installResultKind(result) == "skipped" {
+			conflicts = true
+			continue
 		}
-		skillPaths[skill.name] = path
-		action("%s: %s", skill.label, result)
+		if file.name == "SKILL.md" {
+			manifest.Skills["weeco"] = path
+		} else {
+			manifest.SkillFiles = append(manifest.SkillFiles, path)
+		}
 	}
-	commandData, err := assets.Read(assets.SlashCommand)
-	if err != nil {
+	if err := archiveObsoleteInstallFiles(previous, wanted, skills, store.CommandDir(), dryRun, action); err != nil {
 		return fail(err)
 	}
-	result, err := installFile(commandPath, commandData, 0o644, force, dryRun, "weeco", ownedPaths[filepath.Clean(commandPath)])
-	if err != nil {
+	commandPath := filepath.Join(store.CommandDir(), "weeco.md")
+	if _, err := os.Lstat(commandPath); err == nil {
+		// A dry run leaves the manifest-owned command in place until a real install.
+		if !dryRun || filepath.Clean(previous.Command) != filepath.Clean(commandPath) {
+			action("conflict: legacy slash command %s shadows the weeco Skill; move this user file before using /weeco", commandPath)
+			conflicts = true
+		}
+	} else if !os.IsNotExist(err) {
 		return fail(err)
-	}
-	action("slash command: %s", result)
-	templates := []struct {
-		name  string
-		asset string
-	}{
-		{"contract.md", assets.ContractTemplate},
-		{"result.md", assets.ResultTemplate},
-		{"acceptance.json", assets.AcceptanceTemplate},
-		{"lessons.md", assets.LessonsTemplate},
-		{"requirements.md", assets.RequirementsTemplate},
-	}
-	var templatePaths []string
-	for _, t := range templates {
-		path := filepath.Join(store.TemplateDir(), t.name)
-		data, err := assets.Read(t.asset)
-		if err != nil {
-			return fail(err)
-		}
-		result, err := installFile(path, data, 0o644, force, dryRun, "", ownedPaths[filepath.Clean(path)])
-		if err != nil {
-			return fail(err)
-		}
-		templatePaths = append(templatePaths, path)
-		action("template %s: %s", t.name, result)
-	}
-	manifest := installManifest{
-		Version: Version, Binary: target, Skills: skillPaths,
-		Command: commandPath, Templates: templatePaths, InstalledAt: sysutil.NowISO(),
 	}
 	if !dryRun {
-		if err := sysutil.WriteJSON(store.ManifestPath(), manifest); err != nil {
+		if err := sysutil.WriteJSON(manifestPath, manifest); err != nil {
 			return fail(err)
 		}
 	}
@@ -177,31 +156,202 @@ func cmdInstall(args []string) int {
 	}
 	if dryRun {
 		fmt.Println("dry-run: no files changed")
-		return 0
 	}
-	fmt.Println()
-	fmt.Println("installed: boss + stage skills, team lead skill, slash command, templates")
-	fmt.Println("next:      weeco init --root <project>")
+	if conflicts {
+		return fail(fmt.Errorf("installation has unresolved file conflicts"))
+	}
+	if !dryRun {
+		fmt.Println("installed: binary and weeco Skill")
+		fmt.Println("next: invoke /weeco from the session that will lead the work")
+	}
 	return 0
 }
 
-func installFile(path string, data []byte, mode os.FileMode, force, dryRun bool, ownedMarker string, manifestOwned bool) (string, error) {
-	existing, err := os.ReadFile(path)
+func archiveObsoleteInstallFiles(previous installManifest, wanted map[string]bool, skills, commands string, dryRun bool, action func(string, ...any)) error {
+	type obsoleteFile struct {
+		path string
+		root string
+		kind string
+	}
+	files := map[string]obsoleteFile{}
+	add := func(path, root, kind string) {
+		if path != "" && !wanted[filepath.Clean(path)] {
+			files[filepath.Clean(path)] = obsoleteFile{filepath.Clean(path), root, kind}
+		}
+	}
+	for _, path := range previous.Skills {
+		add(path, skills, "skills")
+	}
+	for _, path := range previous.SkillFiles {
+		add(path, skills, "skills")
+	}
+	for _, path := range previous.Templates {
+		add(path, filepath.Join(store.Home(), "templates"), "templates")
+	}
+	add(previous.Command, commands, "commands")
+	paths := make([]string, 0, len(files))
+	for path := range files {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	archiveDir := ""
+	for _, path := range paths {
+		file := files[path]
+		rel, err := filepath.Rel(file.root, file.path)
+		if err != nil || rel == "." || !filepath.IsLocal(rel) {
+			action("keep obsolete file outside install directory: %s", file.path)
+			continue
+		}
+		if err := checkInstallPath(file.path); err != nil {
+			action("keep obsolete file: %v", err)
+			continue
+		}
+		info, err := os.Lstat(file.path)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		data, err := os.ReadFile(file.path)
+		if err != nil {
+			return fmt.Errorf("read obsolete file %s: %w", file.path, err)
+		}
+		if dryRun {
+			action("archive and remove obsolete file: %s", file.path)
+			continue
+		}
+		if archiveDir == "" {
+			archiveRoot := filepath.Join(store.Home(), "archives")
+			if err := checkInstallParents(filepath.Join(archiveRoot, "archive")); err != nil {
+				return err
+			}
+			if err := os.MkdirAll(archiveRoot, 0o755); err != nil {
+				return err
+			}
+			archiveDir, err = os.MkdirTemp(archiveRoot, archiveVersion(previous.Version)+"-to-"+archiveVersion(Version)+"-")
+			if err != nil {
+				return err
+			}
+		}
+		backup := filepath.Join(archiveDir, file.kind, rel)
+		if err := os.MkdirAll(filepath.Dir(backup), 0o755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(backup, data, info.Mode().Perm()); err != nil {
+			return fmt.Errorf("archive obsolete file %s: %w", file.path, err)
+		}
+		if err := os.Remove(file.path); err != nil {
+			return fmt.Errorf("remove archived file %s: %w", file.path, err)
+		}
+		action("archived obsolete file: %s -> %s", file.path, backup)
+		removeEmptyParentDirs(filepath.Dir(file.path), file.root)
+	}
+	return nil
+}
+
+// removeEmptyParentDirs removes directories left empty after archiving an
+// obsolete file. It stops at root, which is an install directory and may hold
+// other user content, and never follows a path outside it.
+func removeEmptyParentDirs(dir, root string) {
+	root = filepath.Clean(root)
+	for dir = filepath.Clean(dir); ; dir = filepath.Dir(dir) {
+		rel, err := filepath.Rel(root, dir)
+		if err != nil || rel == "." || !filepath.IsLocal(rel) {
+			return
+		}
+		entries, err := os.ReadDir(dir)
+		if err != nil || len(entries) > 0 {
+			return
+		}
+		if err := os.Remove(dir); err != nil {
+			return
+		}
+	}
+}
+
+func checkInstallParents(path string) error {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+	for parent := filepath.Dir(abs); ; parent = filepath.Dir(parent) {
+		info, err := os.Lstat(parent)
+		if err == nil && !info.IsDir() {
+			return fmt.Errorf("conflict: install parent is not a real directory: %s", parent)
+		}
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		if parent == filepath.Dir(parent) {
+			return nil
+		}
+	}
+}
+
+func checkInstallPath(path string) error {
+	if err := checkInstallParents(path); err != nil {
+		return err
+	}
+	info, err := os.Lstat(path)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("conflict: install path is not a regular file: %s", path)
+	}
+	return nil
+}
+
+func archiveVersion(version string) string {
+	version = strings.Map(func(r rune) rune {
+		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '.' || r == '-' || r == '_' {
+			return r
+		}
+		return '_'
+	}, version)
+	if version == "" || version == "." || version == ".." {
+		return "unknown"
+	}
+	return version
+}
+
+func installResultKind(result string) string {
+	switch {
+	case strings.HasPrefix(result, "created"), strings.HasPrefix(result, "would create"):
+		return "created"
+	case strings.HasPrefix(result, "updated"), strings.HasPrefix(result, "would update"):
+		return "updated"
+	case result == "unchanged":
+		return "unchanged"
+	default:
+		return "skipped"
+	}
+}
+
+func installFile(targetPath string, data []byte, mode os.FileMode, force, dryRun, manifestOwned bool) (string, error) {
+	if err := checkInstallPath(targetPath); err != nil {
+		return "skipped (" + err.Error() + ")", nil
+	}
+	if !manifestOwned && !force {
+		if _, err := os.Lstat(targetPath); err == nil {
+			return "skipped (conflict: file exists and is not ours; use --force)", nil
+		} else if !os.IsNotExist(err) {
+			return "", err
+		}
+	}
+	existing, err := os.ReadFile(targetPath)
 	if err == nil {
 		if bytes.Equal(existing, data) {
 			return "unchanged", nil
 		}
-		owned := manifestOwned || (ownedMarker != "" && strings.Contains(string(existing), ownedMarker))
-		if !owned && !force {
-			return "skipped (file exists and is not ours; use --force)", nil
-		}
 		if dryRun {
 			return "would update", nil
 		}
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			return "", err
-		}
-		return "updated", os.WriteFile(path, data, mode)
+		return "updated", os.WriteFile(targetPath, data, mode)
 	}
 	if !os.IsNotExist(err) {
 		return "", err
@@ -209,10 +359,10 @@ func installFile(path string, data []byte, mode os.FileMode, force, dryRun bool,
 	if dryRun {
 		return "would create", nil
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
 		return "", err
 	}
-	return "created", os.WriteFile(path, data, mode)
+	return "created", os.WriteFile(targetPath, data, mode)
 }
 
 func copyFile(src, dst string) error {

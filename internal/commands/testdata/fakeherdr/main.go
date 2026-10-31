@@ -41,6 +41,14 @@ func main() {
 		os.Exit(0)
 	}
 	args := os.Args[1:]
+	if len(args) >= 2 {
+		for _, failure := range strings.Split(os.Getenv("FAKE_HERDR_FAIL"), ",") {
+			if args[0]+" "+args[1] == failure {
+				fmt.Fprintln(os.Stderr, "injected Herdr failure")
+				os.Exit(1)
+			}
+		}
+	}
 	if len(args) >= 1 && args[0] == "--version" {
 		fmt.Println("herdr 0.9.3-fake")
 		return
@@ -80,10 +88,14 @@ func main() {
 				break
 			}
 		}
+		session := map[string]any{"value": "session-" + name}
 		st.Agents[name] = map[string]any{
 			"name": name, "agent_status": "idle", "completion_seq": 0,
 			"pane_id": paneID, "tab_id": paneTab(st, paneID),
-			"native_args": native,
+			"agent_session": session, "native_args": native,
+		}
+		if pane := st.Panes[paneID]; pane != nil {
+			pane["agent_session"], pane["agent"] = session, "claude"
 		}
 		save()
 		out(map[string]any{"result": map[string]any{}})
@@ -92,7 +104,7 @@ func main() {
 		out(map[string]any{"result": map[string]any{}})
 	}
 	if len(args) >= 2 && args[0] == "agent" && args[1] == "list" {
-		var agents []map[string]any
+		agents := []map[string]any{}
 		for _, a := range st.Agents {
 			agents = append(agents, a)
 		}
@@ -101,6 +113,11 @@ func main() {
 	if len(args) >= 2 && args[0] == "agent" && args[1] == "prompt" {
 		if len(args) >= 4 {
 			if agent, ok := findAgent(st, args[2]); ok {
+				if agent["agent_status"] == "blocked" {
+					data, _ := json.Marshal(map[string]any{"error": map[string]string{"code": "agent_blocked", "message": "agent is blocked; no input was sent"}})
+					fmt.Fprintln(os.Stderr, string(data))
+					os.Exit(1)
+				}
 				agent["last_prompt"] = args[3]
 				save()
 			}
@@ -138,7 +155,7 @@ func main() {
 		}})
 	}
 	if len(args) >= 2 && args[0] == "pane" && args[1] == "list" {
-		var panes []map[string]any
+		panes := []map[string]any{}
 		for _, p := range st.Panes {
 			panes = append(panes, p)
 		}

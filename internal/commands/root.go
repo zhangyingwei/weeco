@@ -5,25 +5,21 @@ import (
 	"os"
 )
 
-// Version is the CLI version. Override at build time with -ldflags.
-var Version = "0.9.9"
+// Version is overridden by the build.
+var Version = "0.11.0"
 
-const usageText = `weeco: a company/team control plane for Herdr + Claude
+const usageText = `weeco: a Skill and real Herdr agents for one team
 
 usage: weeco <command> [flags]
 
 commands:
-  init          initialize a project and write the boss block to CLAUDE.md
-  status        show the current requirement, stage and next skill
-  requirement   new | list | show | stage | close
-  workspace     create
-  team          recruit | list | status | wait | nudge | repair | check | accept | rework | answer | disband
-  lead          status | submit | ask
-  member        recruit | status | wait | accept | rework | close
-  install       install the binary, skills, slash command and templates
-  trust         trust a project root for Claude Code (worktrees inherit)
-  doctor        check claude, herdr and the weeco setup
-  version       print the version
+  start    recruit a Herdr member from the current lead pane
+  status   inspect members or wait for new reports
+  send     send work, decisions or progress
+  report   submit this member's result or blocker
+  close    close this run's member panes
+  install  install the binary and the weeco Skill
+  version  print the version
 
 run ` + "`weeco <command> --help`" + ` for command flags.
 `
@@ -33,45 +29,31 @@ func Run(args []string) int {
 		fmt.Print(usageText)
 		return 1
 	}
-	if args[0] == "--version" || args[0] == "version" {
+	if args[0] == "version" || args[0] == "--version" {
 		fmt.Printf("weeco %s\n", Version)
 		return 0
 	}
-	cmd, rest := args[0], args[1:]
-	switch cmd {
-	case "help", "-h", "--help":
+	switch args[0] {
+	case "help", "--help", "-h":
 		fmt.Print(usageText)
 		return 0
-	case "init":
-		return cmdInit(rest)
+	case "start":
+		return cmdStart(args[1:])
 	case "status":
-		return cmdStatus(rest)
-	case "requirement":
-		return cmdRequirement(rest)
-	case "workspace":
-		return cmdWorkspace(rest)
-	case "team":
-		return cmdTeam(rest)
-	case "lead":
-		return cmdLead(rest)
-	case "member":
-		return cmdMember(rest)
+		return cmdStatus(args[1:])
+	case "send":
+		return cmdSend(args[1:])
+	case "report":
+		return cmdReport(args[1:])
+	case "close":
+		return cmdClose(args[1:])
 	case "install":
-		return cmdInstall(rest)
-	case "trust":
-		return cmdTrust(rest)
-	case "doctor":
-		return cmdDoctor(rest)
+		return cmdInstall(args[1:])
 	default:
-		fmt.Fprintf(os.Stderr, "weeco: unknown command: %s\n\n", cmd)
-		fmt.Print(usageText)
+		fmt.Fprintf(os.Stderr, "weeco: unknown command: %s\n", args[0])
 		return 1
 	}
 }
 
-func fail(err error) int {
-	fmt.Fprintf(os.Stderr, "weeco: error: %v\n", err)
-	return 1
-}
-
+func fail(err error) int             { fmt.Fprintf(os.Stderr, "weeco: error: %v\n", err); return 1 }
 func helpRequested(fs *flagSet) bool { return fs.bool("help") }

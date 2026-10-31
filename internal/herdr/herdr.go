@@ -1,221 +1,151 @@
-// Package herdr is the thin adapter over the herdr CLI. A team is one Herdr
-// pane: the lead agent runs in that pane and its members are subagents.
+// Package herdr adapts the Herdr CLI. Every member runs as a real agent in its
+// own pane; transport failures are never reported as an empty list.
 package herdr
 
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
 	"weeco/internal/sysutil"
 )
 
-func RequireWorkspace() (string, error) {
-	if os.Getenv("HERDR_ENV") != "1" {
-		return "", fmt.Errorf("not running inside a Herdr pane (HERDR_ENV != 1); team commands must run from the boss pane")
-	}
-	workspace := os.Getenv("HERDR_WORKSPACE_ID")
-	if workspace == "" {
-		return "", fmt.Errorf("HERDR_WORKSPACE_ID is not set; run from a Herdr-managed pane")
-	}
-	return workspace, nil
+type CommandError struct {
+	Code    string
+	Message string
 }
 
+func (e *CommandError) Error() string { return e.Message }
+
 func Run(args []string, timeout time.Duration) (map[string]any, error) {
+	if timeout <= 0 {
+		timeout = 15 * time.Second
+	}
 	res, err := sysutil.Run(append([]string{"herdr"}, args...), "", timeout, nil)
 	if err != nil {
 		return nil, err
 	}
-	if res.ExitCode != 0 {
+	if res.ExitCode != 0 || res.TimedOut {
 		detail := strings.TrimSpace(res.Stderr)
 		if detail == "" {
 			detail = strings.TrimSpace(res.Stdout)
 		}
 		var parsed struct {
 			Error struct {
+				Code    string `json:"code"`
 				Message string `json:"message"`
 			} `json:"error"`
 		}
-		if json.Unmarshal([]byte(detail), &parsed) == nil && parsed.Error.Message != "" {
-			detail = parsed.Error.Message
+		code := ""
+		if json.Unmarshal([]byte(detail), &parsed) == nil {
+			if parsed.Error.Message != "" {
+				detail = parsed.Error.Message
+			}
+			if !res.TimedOut {
+				code = parsed.Error.Code
+			}
 		}
-		return nil, fmt.Errorf("herdr %s failed: %s", strings.Join(args, " "), detail)
-	}
-	text := strings.TrimSpace(res.Stdout)
-	if text == "" {
-		return map[string]any{}, nil
+		return nil, &CommandError{Code: code, Message: fmt.Sprintf("herdr %s failed: %s", strings.Join(args[:min(2, len(args))], " "), detail)}
 	}
 	var data map[string]any
-	if json.Unmarshal([]byte(text), &data) != nil {
-		return map[string]any{"raw": text}, nil
+	if err := json.Unmarshal([]byte(res.Stdout), &data); err != nil {
+		return nil, fmt.Errorf("herdr returned invalid JSON: %w", err)
+	}
+	if value, ok := data["error"]; ok && value != nil {
+		return nil, fmt.Errorf("herdr returned an error: %v", value)
 	}
 	return data, nil
 }
 
-func resultMap(data map[string]any) map[string]any {
-	if m, ok := data["result"].(map[string]any); ok {
-		return m
-	}
-	return map[string]any{}
+func resultMap(data map[string]any) map[string]any { m, _ := data["result"].(map[string]any); return m }
+func String(m map[string]any, key string) string   { s, _ := m[key].(string); return s }
+func Session(m map[string]any) string {
+	s, _ := m["agent_session"].(map[string]any)
+	return String(s, "value")
 }
 
-func Agents() map[string]map[string]any {
-	data, err := Run([]string{"agent", "list"}, 0)
+func List(kind, workspace string) ([]map[string]any, error) {
+	args := []string{kind, "list"}
+	if kind == "pane" && workspace != "" {
+		args = append(args, "--workspace", workspace)
+	}
+	data, err := Run(args, 0)
 	if err != nil {
-		return map[string]map[string]any{}
+		return nil, err
 	}
-	items, _ := resultMap(data)["agents"].([]any)
-	out := map[string]map[string]any{}
+	items, ok := resultMap(data)[kind+"s"].([]any)
+	if !ok {
+		return nil, fmt.Errorf("herdr %s list returned no %s array", kind, kind+"s")
+	}
+	out := make([]map[string]any, 0, len(items))
 	for _, item := range items {
-		a, ok := item.(map[string]any)
-		if !ok {
-			continue
+		m, ok := item.(map[string]any)
+		if !ok || String(m, "pane_id") == "" {
+			return nil, fmt.Errorf("herdr %s list returned an invalid item", kind)
 		}
-		name := asString(a["name"])
-		if name != "" {
-			out[name] = a
-		}
+		out = append(out, m)
 	}
-	return out
+	return out, nil
 }
 
-func Agent(name string) map[string]any { return Agents()[name] }
-
-func AgentByPane(paneID string) map[string]any {
-	if paneID == "" {
-		return nil
-	}
-	for _, a := range Agents() {
-		if asString(a["pane_id"]) == paneID {
-			return a
+func ByPane(items []map[string]any, id string) map[string]any {
+	for _, m := range items {
+		if String(m, "pane_id") == id {
+			return m
 		}
 	}
 	return nil
 }
 
-// AgentFor prefers the pane ID: pane IDs are unique per Herdr server, while
-// agent names are only unique among live agents and may repeat across projects.
-func AgentFor(paneID, name string) map[string]any {
-	if a := AgentByPane(paneID); a != nil {
-		return a
+func PaneSplit(target, direction, cwd string, ratio float64) (string, error) {
+	args := []string{"pane", "split", target, "--direction", direction, "--cwd", cwd, "--no-focus"}
+	if ratio > 0 {
+		args = append(args, "--ratio", fmt.Sprintf("%.2f", ratio))
 	}
-	return Agent(name)
-}
-
-func AgentStatusFor(paneID, name string) string {
-	a := AgentFor(paneID, name)
-	if a == nil {
-		return ""
-	}
-	return asString(a["agent_status"])
-}
-
-// Target prefers the pane ID for agent commands that accept a pane or a live
-// agent name.
-func Target(paneID, name string) string {
-	if paneID != "" {
-		return paneID
-	}
-	return name
-}
-
-func AgentStatus(name string) string {
-	a := Agent(name)
-	if a == nil {
-		return ""
-	}
-	return asString(a["agent_status"])
-}
-
-func TabCreate(workspace, cwd, label string) (string, string, error) {
-	data, err := Run([]string{
-		"tab", "create",
-		"--workspace", workspace,
-		"--cwd", cwd,
-		"--label", label,
-		"--no-focus",
-	}, 0)
+	data, err := Run(args, 0)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
-	result := resultMap(data)
-	tab, _ := result["tab"].(map[string]any)
-	pane, _ := result["root_pane"].(map[string]any)
-	tabID := asString(tab["tab_id"])
-	paneID := asString(pane["pane_id"])
-	if tabID == "" || paneID == "" {
-		return "", "", fmt.Errorf("herdr tab create returned no tab/pane id: %v", data)
+	pane, _ := resultMap(data)["pane"].(map[string]any)
+	id := String(pane, "pane_id")
+	if id == "" {
+		return "", fmt.Errorf("herdr pane split returned no pane id")
 	}
-	return tabID, paneID, nil
+	return id, nil
 }
 
-func AgentStart(name, paneID, kind string, timeoutMS int, extraDirs []string, permissionMode, systemPromptFile string) error {
-	args := []string{
-		"agent", "start", name,
-		"--kind", kind,
-		"--pane", paneID,
-		"--timeout", sysutil.Itoa(timeoutMS),
+func AgentStart(name, paneID, kind string, timeoutMS int, dirs []string, permissionMode, systemPromptFile string) error {
+	args := []string{"agent", "start", name, "--kind", kind, "--pane", paneID, "--timeout", sysutil.Itoa(timeoutMS)}
+	extra := []string{}
+	for _, dir := range dirs {
+		extra = append(extra, "--add-dir", dir)
 	}
-	var passthrough []string
-	if len(extraDirs) > 0 {
-		passthrough = append(passthrough, "--add-dir")
-		passthrough = append(passthrough, extraDirs...)
+	if permissionMode != "" {
+		extra = append(extra, "--permission-mode", permissionMode)
 	}
-	if kind == "claude" && permissionMode != "" {
-		passthrough = append(passthrough, "--permission-mode", permissionMode)
+	if systemPromptFile != "" {
+		extra = append(extra, "--append-system-prompt-file", systemPromptFile)
 	}
-	if kind == "claude" && systemPromptFile != "" {
-		// Herdr rejects agent start arguments containing control characters, so
-		// a multi-line prompt must be passed by file, not inline.
-		passthrough = append(passthrough, "--append-system-prompt-file", systemPromptFile)
+	if len(extra) > 0 {
+		args = append(append(args, "--"), extra...)
 	}
-	if len(passthrough) > 0 {
-		args = append(args, "--")
-		args = append(args, passthrough...)
-	}
-	timeout := time.Duration(timeoutMS)*time.Millisecond + 15*time.Second
-	if timeout < 30*time.Second {
-		timeout = 30 * time.Second
-	}
-	// A freshly split pane may still be spawning its shell. Herdr rejects
-	// agent start with agent_pane_busy until that shell is interactive, so
-	// retry briefly instead of failing the member recruitment.
 	deadline := time.Now().Add(30 * time.Second)
 	for {
-		_, err := Run(args, timeout)
+		_, err := Run(args, time.Duration(timeoutMS)*time.Millisecond+15*time.Second)
 		if err == nil {
 			return nil
 		}
-		if !agentPaneBusy(err) || time.Now().After(deadline) {
+		if time.Now().After(deadline) || (!strings.Contains(err.Error(), "agent_pane_busy") && !strings.Contains(err.Error(), "not an available shell")) {
 			return err
 		}
 		time.Sleep(300 * time.Millisecond)
 	}
 }
 
-func agentPaneBusy(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := err.Error()
-	return strings.Contains(msg, "agent_pane_busy") || strings.Contains(msg, "not an available shell")
-}
-
-func AgentWait(name string, timeoutS float64, until string) error {
-	args := []string{"agent", "wait", name}
-	if until != "" {
-		args = append(args, "--until", until)
-	}
-	args = append(args, "--timeout", sysutil.Itoa(int(timeoutS*1000)))
-	_, err := Run(args, time.Duration(timeoutS)*time.Second+15*time.Second)
-	return err
-}
-
-func AgentPrompt(name, text string, wait bool, timeoutS float64) error {
-	args := []string{"agent", "prompt", name, text}
-	timeout := 60 * time.Second
+func AgentPrompt(target, text string, wait bool, timeoutS float64) error {
+	args := []string{"agent", "prompt", target, text}
+	timeout := 15 * time.Second
 	if wait {
 		args = append(args, "--wait")
 		if timeoutS > 0 {
@@ -227,65 +157,8 @@ func AgentPrompt(name, text string, wait bool, timeoutS float64) error {
 	return err
 }
 
-func PaneClose(paneID string) error {
-	_, err := Run([]string{"pane", "close", paneID}, 0)
+func PaneClose(id string) error { _, err := Run([]string{"pane", "close", id}, 0); return err }
+func PaneRename(id, label string) error {
+	_, err := Run([]string{"pane", "rename", id, label}, 0)
 	return err
-}
-
-// PaneSplit creates a sibling pane in the target pane's tab and returns the new
-// pane id. Employees are added this way, so a team stays one tab/panel.
-func PaneSplit(targetPane, direction, cwd string, ratio float64) (string, error) {
-	args := []string{"pane", "split", targetPane, "--direction", direction}
-	if ratio > 0 {
-		args = append(args, "--ratio", fmt.Sprintf("%.2f", ratio))
-	}
-	if cwd != "" {
-		args = append(args, "--cwd", cwd)
-	}
-	args = append(args, "--no-focus")
-	data, err := Run(args, 0)
-	if err != nil {
-		return "", err
-	}
-	pane, _ := resultMap(data)["pane"].(map[string]any)
-	paneID := asString(pane["pane_id"])
-	if paneID == "" {
-		return "", fmt.Errorf("herdr pane split returned no pane id: %v", data)
-	}
-	return paneID, nil
-}
-
-func PaneRename(paneID, label string) error {
-	if paneID == "" || label == "" {
-		return nil
-	}
-	_, err := Run([]string{"pane", "rename", paneID, label}, 0)
-	return err
-}
-
-func TabClose(tabID string) error {
-	_, err := Run([]string{"tab", "close", tabID}, 0)
-	return err
-}
-
-func Panes(workspace string) ([]map[string]any, error) {
-	data, err := Run([]string{"pane", "list", "--workspace", workspace}, 0)
-	if err != nil {
-		return nil, err
-	}
-	items, _ := resultMap(data)["panes"].([]any)
-	var panes []map[string]any
-	for _, item := range items {
-		if m, ok := item.(map[string]any); ok {
-			panes = append(panes, m)
-		}
-	}
-	return panes, nil
-}
-
-func asString(v any) string {
-	if s, ok := v.(string); ok {
-		return s
-	}
-	return ""
 }
