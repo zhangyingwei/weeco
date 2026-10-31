@@ -160,6 +160,18 @@ func AgentPrompt(target, text string, wait bool, timeoutS float64) error {
 	return err
 }
 
+// AgentWait confirms that a delivered prompt actually started the agent.
+// Herdr reports success for panes sitting on a modal prompt, so callers need
+// this check before trusting that a message was received.
+func AgentWait(target string, until []string, timeout time.Duration) error {
+	args := []string{"agent", "wait", target, "--timeout", sysutil.Itoa(int(timeout / time.Millisecond))}
+	for _, status := range until {
+		args = append(args, "--until", status)
+	}
+	_, err := Run(args, timeout+5*time.Second)
+	return err
+}
+
 func PaneClose(id string) error { _, err := Run([]string{"pane", "close", id}, 0); return err }
 func PaneRename(id, label string) error {
 	_, err := Run([]string{"pane", "rename", id, label}, 0)

@@ -15,11 +15,12 @@ type runtimeFixture struct {
 }
 
 type runtimeMemberSnapshot struct {
-	PaneID string `json:"pane_id"`
-	Agent  string `json:"agent"`
-	State  string `json:"state"`
-	Turn   int    `json:"turn"`
-	Report string `json:"report"`
+	PaneID    string `json:"pane_id"`
+	Agent     string `json:"agent"`
+	State     string `json:"state"`
+	Turn      int    `json:"turn"`
+	Report    string `json:"report"`
+	LastError string `json:"last_error"`
 }
 
 type runtimeSnapshot struct {

@@ -273,6 +273,24 @@ func TestRuntimeUnconfirmedDeliveryKeepsNewTurn(t *testing.T) {
 	}
 }
 
+func TestRuntimeSendRequiresMemberToStart(t *testing.T) {
+	f := setupRuntime(t)
+	startWriter(t, f)
+	f.asMember(t, "writer")
+	if Run([]string{"report", "--turn", "1", "--file", f.result}) != 0 {
+		t.Fatal("initial submission failed")
+	}
+	f.asLead(t)
+	t.Setenv("FAKE_HERDR_FAIL", "agent wait")
+	if Run([]string{"send", "writer", "--file", f.task}) == 0 {
+		t.Fatal("send reported success although the member never started")
+	}
+	m := f.run(t).Members["writer"]
+	if m.Turn != 2 || m.State != "running" || m.Report != "" || m.LastError == "" {
+		t.Fatalf("unconfirmed send state = %+v", m)
+	}
+}
+
 func TestRuntimeRejectsPaneSessionReplacement(t *testing.T) {
 	f := setupRuntime(t)
 	startWriter(t, f)

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"time"
 
 	"weeco/internal/herdr"
 	"weeco/internal/store"
@@ -101,6 +102,15 @@ func cmdSend(args []string) int {
 				return fmt.Errorf("%v; save: %w", err, saveErr)
 			}
 			return fmt.Errorf("%s; inspect member before resending", m.LastError)
+		}
+		// Herdr reports prompt success even when the pane sits on a modal
+		// dialog. Wait for the member to actually start this turn.
+		if err := herdr.AgentWait(m.PaneID, []string{"working"}, 15*time.Second); err != nil {
+			m.LastError = "delivery not confirmed: " + err.Error()
+			if saveErr := store.SaveRun(run); saveErr != nil {
+				return fmt.Errorf("%v; save: %w", err, saveErr)
+			}
+			return fmt.Errorf("instruction may not have reached member %s; inspect its pane: %s", m.Name, m.LastError)
 		}
 		fmt.Printf("sent: %s\nturn: %d\n", m.Name, m.Turn)
 		return nil
