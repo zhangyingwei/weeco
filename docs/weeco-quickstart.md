@@ -1,253 +1,130 @@
 # weeco 快速开始
 
-`weeco` 是“老板 + 临时团队”的控制面。本文只讲一条最短路径：初始化、招一个设计团队、招一个实施团队、验收、解散。
+本页介绍 v0.11.0 的新接口：一个 `/weeco` 技能，当前会话负责组织，真实成员在同一个 Herdr tab 中分屏协作。下方示例描述操作方法，实际验证范围与限制见页末。
 
-完整设计见 [references/weeco-company-model.md](../references/weeco-company-model.md)。
+## 安装
 
-## 0. 前提
-
-- macOS / Linux
-- Go 1.24+（从源码构建）
-- Herdr ≥ 0.9.3
-- Claude Code
-- git 可选：有 git 时可以用需求级 worktree；没有 git 时用普通目录
-
-## 1. 构建和安装
+从源码安装需要 Go 1.24+：
 
 ```bash
-git clone <weeco-repo-url> ~/weeco
-cd ~/weeco
-make build
-./bin/weeco install
+make install
 ```
 
-`install` 会写：
+已有二进制可执行 `weeco install` 安装技能。默认二进制为 `~/.local/bin/weeco`，技能和成员提示为 `~/.claude/skills/weeco/{SKILL.md,member-prompt.md}`。确认 `weeco`、`herdr` 和 `claude` 在 PATH 中，Claude 已能正常登录和工作。
 
-| 内容 | 位置 |
-|---|---|
-| 二进制 | `~/.local/bin/weeco` |
-| 老板 skill | `~/.claude/skills/weeco-boss/SKILL.md` |
-| 团队负责人 skill | `~/.claude/skills/weeco-team-lead/SKILL.md` |
-| slash command | `~/.claude/commands/weeco.md` |
-| 模板 | `~/.weeco/templates/{requirements.md,contract.md,result.md,acceptance.json,lessons.md}` |
+运行时进入 Herdr 的 pane，在要工作的目录中使用 Claude。无需项目初始化，不需要写项目 CLAUDE.md 或变更信任、权限。当前 pane 是唯一负责人，成员都在当前 tab 中分屏，结束团队时保留主 pane。
 
-检查：
+升级时，安装器自动归档并移除旧 manifest 拥有的技能、模板和同名 slash 命令，保留用户自定义内容；不会回滚历史信任设置。归档位置和处理结果以安装输出为准。
 
-```bash
-weeco doctor
+## 用目标启动协作
+
+在负责人会话输入：
+
+```text
+/weeco 用我提供的三段材料写一份200字以内的活动通知，缺失信息留空，不发布
 ```
 
-## 2. 初始化项目
+负责人使用已有目标和授权，按成果与依赖分配工作。这个简单任务可以由负责人写稿，1 名真实成员逐条核对材料、字数和空缺；人数共 2 人。任务复杂时按实际工作增加成员，不按固定领域岗位凑人数。
 
-```bash
-mkdir ~/code/demo && cd ~/code/demo
-weeco init
+只有缺失信息会改变行动时才询问。用户已允许事实缺项留空，就按该边界成稿；用户只要计划或方案，就以方案交付为止，不实施其中的真实操作。
+
+## 负责人启动成员
+
+通常由 `/weeco` 中的负责人代为调用命令。需要了解底层操作时，先写一份任务文件，例如 `/tmp/notice-check-task.txt`：
+
+```text
+目标：核对负责人交付的活动通知。
+原始材料与通知位置：填写本次工作使用的真实路径。
+范围：只核对，不改正文，不发布。
+交付：逐项列出事实与原文对应、字数结果、应保留的缺项及具体问题。
+验收：每条结论给出材料位置；不能确认的内容明确标注。
+依赖：通知草稿由负责人提供。当前 turn 以 CLI 注入值为准。
 ```
 
-`init` 会：
-
-- 在 `~/.weeco/projects/` 注册这个项目
-- 在项目根目录 `CLAUDE.md` 写入 `<!-- weeco:begin -->` 块
-- 有 git 时记录默认分支；没有 git 也能初始化
-
-这个块告诉主 Claude：
-
-> 你是老板，不做具体任务；需要设计、计划、实施、评审时招团队。
-
-Claude Code 首次进入一个新目录会弹工作区信任确认。`weeco init` 默认写入信任，把 canonical git root 记到 `~/.claude.json`，worktree 自动继承。也可以在目录里启动 Claude，接受一次弹窗。
-
-- 不想自动信任：`weeco init --no-trust`，之后可手动 `weeco trust .`
-- 老项目或独立工作区：`weeco trust <path>`
-- `team recruit` 默认会补信任；加 `--no-trust` 则要求已信任，否则报错。
-- 信任要在启动 Claude **之前**写入；已经启动的会话需要重启才会生效。
-
-## 3. 提需求
-
-在项目目录里启动 Claude，直接说需求。老板会先和你澄清，然后：
+示例中的路径说明须替换为实际材料位置，再执行：
 
 ```bash
-weeco requirement new --goal "..."
+weeco start --name checker --role "核对材料与成稿" --task /tmp/notice-check-task.txt
 weeco status
+weeco status checker --wait --timeout 60
 ```
 
-澄清期间老板会判断需求是否成立（对齐上游目标、预期效果、事实依据），并把结论写进 `docs/weeco/requirements/R-....md`。老板只做单点事实核对，不做市场/竞品调研；方向未知或需要外部证据时，会先建需求并招 `purpose=research` 的调研团队，结论和选项交给你决定后再进入设计。
+首名成员自动建立 run，记下输出中的 run ID。成员是同 tab 的真实 Herdr Agent，不能用 Agent/Task 工具代替。共享文件需明确写入归属。需要替换同名成员时，先检查当前状态并保存必要成果，再使用 `start` 的 `--replace`。
 
-得到一个需求号，例如 `R-20261026-01`。`weeco status` 会显示当前阶段和 `next_skill`，老板据此加载阶段 skill：
+`status [ALIAS] --json` 输出结构化状态。每次 `status --wait` 只进行一次等待：等新报告到达或到达超时时间后返回，不会持续替负责人跟进后续轮次。返回后读取实际报告和状态；等待超时时核对 pane 与任务进展，idle、超时或没有输出都不能当作完成。
 
-| Skill | 阶段 |
-|---|---|
-| `weeco-requirements` | 需求澄清 |
-| `weeco-design` | 设计团队 |
-| `weeco-plan` | 计划团队 |
-| `weeco-implement` | 实施团队 |
-| `weeco-review` | 等待、验收、返工 |
-| `weeco-deliver` | 交付、关闭 |
+## 成员提交指定轮次
 
-这些 skill 只规定怎么调用 weeco；具体产出由团队完成。
-
-## 4. 招设计团队
-
-老板写一份设计团队合同，例如 `docs/weeco/contracts/design.md`：
-
-```markdown
-# 设计团队合同
-
-## 目标
-做一个 Web 记事本的需求/交互设计。
-
-## 交付物
-- 需求说明
-- 页面和交互说明
-
-## 验收标准
-- 覆盖新建、编辑、删除、搜索
-- 说明数据如何保存
-
-## 约束
-- 不写代码
-- 只在指定工作区工作
-
-## 工作区
-/Users/me/code/demo
-
-## 团队
-- 目的：design
-- 人数：N 名员工（不含负责人）
-- 工作单元：1) ... 2) ...
-- 依赖：A → B（没有就写“无”）
-- 并行链：...
-- 定员依据：N = 合并后的并行链数 + 必需的独立验证链；耦合/合并说明
-- 角色：产品、交互
-```
-
-招团队：
+CLI 为成员注入身份、原始任务、控制目录、当前 turn 及报告命令。`report` 必须显式提供 `--turn N`，不能省略或自动使用最新轮次。成员将实际结果与依据写入报告文件，使用收到的明确轮次，例如当前收到的是第 1 轮：
 
 ```bash
-weeco team recruit --requirement R-20261026-01 \
-  --purpose design --contract docs/weeco/contracts/design.md --size N
+weeco report --turn 1 --file /tmp/notice-check-report.txt
 ```
 
-N 按工作图定：工作单元（能独立交付/验收的最小块）、依赖、并行链、耦合、独立验证。`N = 合并后的并行链数 + 必需的独立验证链`；链长不增加 N，耦合会减少 N；N > 3 写 ownership 和合并顺序，N > 5 拆需求。`size` 是员工数，不含负责人。
+不能读取最新 turn 替旧结果报数。新一轮任务需要本轮的工作与核验依据，不能复用旧报告冒充完成。
 
-`team recruit` 会：
-
-- 创建一个临时团队目录 `~/.weeco/projects/<key>/teams/T-.../`
-- 把合同复制进去
-- 在 Herdr 当前 workspace 开一个团队 tab（负责人 pane）
-- 启动团队负责人 agent（bypass 权限）
-- 把 team id、合同路径、工作区、团队人数发给负责人
-
-一个团队是一个 tab/panel；员工是负责人用 `weeco member recruit` 招的 Herdr agent，在同一个 tab 内分屏加入，不新开 tab。员工数量不设工具上限。
-
-负责人会为每个员工写任务文件、split 一个 pane、启动员工 agent；员工读任务、写 `members/<agent>/report.md`，负责人用 `weeco member wait/status/accept/rework` 初验。老板可以用 `weeco team status T-...` 看成员表，或在 Herdr 里直接看团队 tab 的多个 pane。
-
-如果这个团队需要机器检查，再写一份 `acceptance.json`，并在 recruit 时加 `--acceptance <file>`：
+无法继续时，报告说明阻塞、证据、需要的决定和可继续部分：
 
 ```bash
-weeco team recruit --requirement R-20261026-01 \
-  --purpose implement --contract implement.md --acceptance acceptance.json --size N
+weeco report --turn 1 --file /tmp/notice-check-blocked.txt --blocked
 ```
 
-它会被复制到团队目录，`team check` 在那里运行。可选字段：`required_files`（检查文件并记录 SHA-256）、`require_clean_tree`（要求 git 工作区干净）、`record_git`（记录 commit/tree/branch/status）。
-
-## 5. 等负责人提交
+需要向负责人通信可用：
 
 ```bash
-weeco team wait T-20261026-01
+weeco send lead --file /tmp/notice-question.txt
 ```
 
-在后台运行；它只在 submitted/blocked/lost 或超时时返回。负责人 idle 不代表团队结束，不要因为 agent idle 就停止等待。
+`send lead` 只传递消息，不代表问题已经获批。成员不递归招人、不自行验收或关闭团队，报告后等待负责人返工或关闭。
 
-可能的结果：
+## 返工与实际验收
 
-- `submitted`：负责人认为团队交付达到合同要求，等你验收
-- `blocked`：负责人需要你决策
-- `lost`：负责人 agent 不在了
-- `active` 但 agent idle：负责人没有 submit 也没有 ask，需要看 pane
-
-查看：
+负责人读实际通知和原始材料，不能只读成员的完成声明。发现问题时，将现象、期望、依据与修复边界写入补充文件，再执行：
 
 ```bash
-weeco team status T-20261026-01
+weeco send checker --file /tmp/notice-follow-up.txt
+weeco status checker --wait --timeout 60
 ```
 
-## 6. 老板验收
+向成员 `send` 会开启新 turn，CLI 在消息中给出轮次。补充文件说明承接哪轮与要解决的问题，成员随后使用新轮次报告。
 
-先读：
+按实际任务选择证据：端口修改检查当前进程与新端口能否启动；通知检查事实、字数和缺项；迁移方案检查步骤、对账、回滚、失败重跑和未验证依赖。方案完整不能证明生产迁移已执行，模拟检查也不能冒称真实用户反馈。独立检查从原始目标和来源重新核验，并尝试找反例。
 
-- 合同：`weeco team status` 里的 `contract`
-- 成员表：`weeco team status`；每个员工应该是 accepted 或 closed
-- 负责人写的 `result.md`
-- 交付物
+## 交付与关闭
 
-老板不能只看 `result.md`。至少检查：合同/result/成员表；工作区/分支/commit；`git status` 干净；验收命令/环境/输出；真实关键路径 + 一个失败路径；工件/证据哈希；范围是否越界；未验证项/剩余风险。
-
-如果合同目录里有 `acceptance.json`：
+交付边界内检查完成后，负责人说明成果位置、实际核验、未验证项和剩余问题，再关闭：
 
 ```bash
-weeco team check T-20261026-01
+weeco close checker
 ```
 
-通过：
+省略成员名会关闭当前团队的成员，保留负责人主 pane：
 
 ```bash
-weeco team accept T-20261026-01 --note "检查了需求覆盖和交互说明" --lessons-updated
+weeco close
 ```
 
-`accept` 默认关闭整个团队 tab（负责人 + 所有员工 pane），团队进入 `disbanded`；worktree 不会删。它会写 `acceptance.md`，并记录 lessons 是否更新（`--lessons-updated` / `--no-lessons`）。
-
-不通过：
+仍待用户决定或需要返工时，先保留相关成员。取消用明确原因记录：
 
 ```bash
-weeco team rework T-20261026-01 --issues "缺少删除确认；搜索范围没说清楚"
+weeco close checker --cancel --reason "用户取消本次核对"
 ```
 
-问题退回原团队。负责人协调员工返工后重新提交；旧 `check.json` 会失效，返工后要重新 check。
-
-## 7. 计划和实施团队
-
-设计验收并解散后，确定要落地实施：
+关闭动作不是成果通过的证明。所有协作命令支持 `--run ID`；需要显式定位时，将 `RUN_ID` 替换为 `start` 返回的实际值：
 
 ```bash
-weeco requirement stage R-20261026-01 --set plan
-weeco workspace create --requirement R-20261026-01 --base main
+weeco status --run RUN_ID
 ```
 
-- git 项目：创建需求级 worktree（仓库至少要先有一个 commit）
-- 非 git 项目：使用项目根目录或 `--path` 指定目录
+运行记录位于 `~/.weeco/runs/<id>/run.json`，任务和报告另存快照。不手改记录；任务产物放在约定的交付位置。
 
-然后按同样方式招 `plan` 团队、`implement` 团队。同一个需求同一时间只允许一个 active 团队；上一个团队验收解散后再招下一个。
+## 遇到阻塞
 
-## 8. 关闭需求
+- 无法启动真实成员：先确认当前会话位于 Herdr pane，`herdr` 与 `claude` 可用，并检查启动命令的实际错误；不要用单会话角色模拟替代。
+- 成员没有报告：查看指定成员与 turn，核对 pane 和任务进展，不能靠 idle 推定完成。
+- 报告轮次不符：成员按自己收到的明确 turn 报告；过期结果不能改成最新轮次补报。
+- 需要用户决定：负责人只暂停依赖该决定的工作，保留相关成员，其余已授权工作可以继续。
 
-全部团队验收后，向客户交付，然后：
+v0.11.0 已通过自动回归、race 检查、静态检查和构建，并手工驱动真实双成员完成启动、报告、原成员第二轮修改及关闭。真实 `/weeco` 方案任务已验证自主分工、独立检查和仅交方案的边界；隔离代码任务已完成问题复现、最小修改和独立回归，最终 11 项验收测试通过。
 
-```bash
-weeco requirement close R-20261026-01 --remove-worktree --lessons-reviewed
-```
-
-只有这一步会删除需求级 worktree。外部 `--path` 工作区不会被删除。
-
-## 常用命令
-
-```bash
-weeco status
-weeco requirement list
-weeco requirement show R-...
-weeco team list
-weeco team status T-...
-weeco team nudge T-...
-weeco team repair T-...
-weeco team answer T-... --decision "..."
-weeco team disband T-...
-```
-
-## 排查
-
-- `not running inside a Herdr pane`：老板的 `team recruit` 必须从 Herdr 里的主 Claude 会话运行。
-- 负责人找不到项目：从团队 pane 里，`weeco lead/member ...` 会用 `HERDR_PANE_ID` 自动解析项目；如果提示没有上下文，再带 `--project <项目根>`。
-- 负责人 idle 但没有提交：`weeco team nudge T-...`。
-- 负责人丢失或状态对不上：`weeco team repair T-...`，再决定是否 `team disband --force`。
-- 员工 pane/agent 丢失：`weeco team repair T-...` 会把成员标为 lost；负责人在团队 pane 里 `weeco member close <agent>`，再用新名字招募替代员工。
-- `submitted` 但验收失败：先 `team rework`，不要直接 `accept --force`。
-- 负责人丢失：`weeco team disband T-... --force`，然后按同一合同重新招团队。
+本机的真实 Skill 试用还遇到自动审批器拒绝 `report`：目标 run 与提交指令被认定来自粘贴的协作消息，需要直接授权。该命令未执行，不能把本地文件存在或 live=done 当作已提交。测试团队保留实际产物与拒绝原因，用 `close --cancel --reason ...` 结束未提交的运行；没有代报、改权限或绕过。当前环境中的完整自动提交仍受此限制，小样本试用也不代表所有任务质量已获证明。

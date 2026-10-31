@@ -1,10 +1,8 @@
 # Agent 舰队参考文档
 
-本目录收集“以 fleet（舰队）方式编排 AI Agent”的开源项目与产品资料，全部按同一套 7 组件口径整理，供重建 Vibe Coding System 的舰队内核使用。
+本目录保留此前收集的 Agent 编排项目研究资料，供按需查阅。这里描述的是外部项目，不是 weeco 当前的功能规范。
 
-> weeco 自身的设计见 [weeco-company-model.md](weeco-company-model.md)。
->
-> 老板行为规范草案见 [boss-norms.md](boss-norms.md)。
+> weeco 当前的功能和用法见 [README](../README.md) 与 [快速开始](../docs/weeco-quickstart.md)。
 
 ## 7 组件口径
 
