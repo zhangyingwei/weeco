@@ -118,12 +118,19 @@ func TestRuntimeMemberGetsNarrowReportPermission(t *testing.T) {
 		t.Fatal(err)
 	}
 	rules := ""
+	mode := ""
 	for _, agent := range st.Agents {
 		for i, arg := range agent.NativeArgs {
 			if arg == "--allowedTools" && i+1 < len(agent.NativeArgs) {
 				rules = agent.NativeArgs[i+1]
 			}
+			if arg == "--permission-mode" && i+1 < len(agent.NativeArgs) {
+				mode = agent.NativeArgs[i+1]
+			}
 		}
+	}
+	if mode != "manual" {
+		t.Fatalf("member permission mode = %q; auto mode re-judges collaboration commands", mode)
 	}
 	if !strings.Contains(rules, "weeco report") || !strings.Contains(rules, "weeco send") {
 		t.Fatalf("member must be allowed to report and message: %q", rules)
