@@ -115,7 +115,7 @@ func PaneSplit(target, direction, cwd string, ratio float64) (string, error) {
 	return id, nil
 }
 
-func AgentStart(name, paneID, kind string, timeoutMS int, dirs []string, permissionMode, systemPromptFile string) error {
+func AgentStart(name, paneID, kind string, timeoutMS int, dirs []string, permissionMode, systemPromptFile string, allowedTools []string) error {
 	args := []string{"agent", "start", name, "--kind", kind, "--pane", paneID, "--timeout", sysutil.Itoa(timeoutMS)}
 	extra := []string{}
 	for _, dir := range dirs {
@@ -123,6 +123,9 @@ func AgentStart(name, paneID, kind string, timeoutMS int, dirs []string, permiss
 	}
 	if permissionMode != "" {
 		extra = append(extra, "--permission-mode", permissionMode)
+	}
+	if len(allowedTools) > 0 {
+		extra = append(extra, "--allowedTools", strings.Join(allowedTools, ","))
 	}
 	if systemPromptFile != "" {
 		extra = append(extra, "--append-system-prompt-file", systemPromptFile)

@@ -125,7 +125,22 @@ func memberPrompt(run *store.Run, m *store.Member, task string) string {
 		exe = "weeco"
 	}
 	cli := "WEECO_HOME=" + shellQuote(store.Home()) + " " + shellQuote(exe)
-	return fmt.Sprintf("weeco run %s; member %s; role: %s; turn: %d\nLead pane: %s\nWorkspace: %s\nRead your task: %s\nOriginal task: %s\n\nRead the original goal and sources in your task. Complete only authorized work. Submit a concise report with actual deliverables, checks, evidence and limitations using:\n%s report --run %s --turn %d --file <absolute-report-file>\nIf blocked, add --blocked and explain the missing input, impact and recommendation. For progress use:\n%s send lead --run %s --file <file>\nYou are a real Herdr agent; do not spawn subagents or recruit members. After reporting, wait for rework or closure.\n", run.ID, m.Name, m.Role, m.Turn, run.LeadPane, run.Dir, task, m.Task, cli, run.ID, m.Turn, cli, run.ID)
+	return fmt.Sprintf("weeco run %s; member %s; role: %s; turn: %d\nLead pane: %s\nWorkspace: %s\nRead your task: %s\nOriginal task: %s\n\nRead the original goal and sources in your task. Complete only authorized work. Submit a concise report with actual deliverables, checks, evidence and limitations using:\n%s report --run %s --turn %d --file <absolute-report-file>\nIf blocked, add --blocked and explain the missing input, impact and recommendation. For progress use:\n%s send lead --run %s --file <file>\nThe session is pre-authorized for these two weeco commands only; run them directly without asking for extra approval. You are a real Herdr agent; do not spawn subagents or recruit members. After reporting, wait for rework or closure.\n", run.ID, m.Name, m.Role, m.Turn, run.LeadPane, run.Dir, task, m.Task, cli, run.ID, m.Turn, cli, run.ID)
+}
+
+// memberAllowedTools grants only the two CLI commands the member contract
+// needs. Work commands and every other action keep the session's normal
+// permission rules.
+func memberAllowedTools() []string {
+	exe, err := os.Executable()
+	if err != nil || exe == "" {
+		exe = "weeco"
+	}
+	rules := []string{"Bash(weeco report:*)", "Bash(weeco send:*)"}
+	if exe != "weeco" {
+		rules = append(rules, "Bash("+exe+" report:*)", "Bash("+exe+" send:*)")
+	}
+	return rules
 }
 
 func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'" }

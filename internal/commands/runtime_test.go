@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -97,6 +98,41 @@ func (f runtimeFixture) asLead(t *testing.T) { t.Helper(); t.Setenv("HERDR_PANE_
 func (f runtimeFixture) asMember(t *testing.T, name string) {
 	t.Helper()
 	t.Setenv("HERDR_PANE_ID", f.run(t).Members[name].PaneID)
+}
+
+func TestRuntimeMemberGetsNarrowReportPermission(t *testing.T) {
+	f := setupRuntime(t)
+	if code := Run([]string{"start", "--name", "writer", "--role", "写作", "--task", f.task}); code != 0 {
+		t.Fatalf("start failed: %d", code)
+	}
+	data, err := os.ReadFile(f.state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var st struct {
+		Agents map[string]struct {
+			NativeArgs []string `json:"native_args"`
+		} `json:"agents"`
+	}
+	if err := json.Unmarshal(data, &st); err != nil {
+		t.Fatal(err)
+	}
+	rules := ""
+	for _, agent := range st.Agents {
+		for i, arg := range agent.NativeArgs {
+			if arg == "--allowedTools" && i+1 < len(agent.NativeArgs) {
+				rules = agent.NativeArgs[i+1]
+			}
+		}
+	}
+	if !strings.Contains(rules, "weeco report") || !strings.Contains(rules, "weeco send") {
+		t.Fatalf("member must be allowed to report and message: %q", rules)
+	}
+	for _, broad := range []string{"Bash(*)", "start", "close", "stop"} {
+		if strings.Contains(rules, broad) {
+			t.Fatalf("member permission is broader than the two CLI commands: %q", rules)
+		}
+	}
 }
 
 func TestRuntimeLifecycle(t *testing.T) {
