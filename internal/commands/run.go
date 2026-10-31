@@ -124,8 +124,21 @@ func memberPrompt(run *store.Run, m *store.Member, task string) string {
 	if err != nil {
 		exe = "weeco"
 	}
-	cli := "WEECO_HOME=" + shellQuote(store.Home()) + " " + shellQuote(exe)
+	// Keep the command prefix stable so the session's explicit allow rules
+	// match. WEECO_HOME is only needed when the run does not use the default.
+	cli := shellPath(exe)
+	if store.Home() != defaultHome() {
+		cli = "WEECO_HOME=" + shellPath(store.Home()) + " " + cli
+	}
 	return fmt.Sprintf("weeco run %s; member %s; role: %s; turn: %d\nLead pane: %s\nWorkspace: %s\nRead your task: %s\nOriginal task: %s\n\nRead the original goal and sources in your task. Complete only authorized work. Submit a concise report with actual deliverables, checks, evidence and limitations using:\n%s report --run %s --turn %d --file <absolute-report-file>\nIf blocked, add --blocked and explain the missing input, impact and recommendation. For progress use:\n%s send lead --run %s --file <file>\nThe session is pre-authorized for these two weeco commands only; run them directly without asking for extra approval. You are a real Herdr agent; do not spawn subagents or recruit members. After reporting, wait for rework or closure.\n", run.ID, m.Name, m.Role, m.Turn, run.LeadPane, run.Dir, task, m.Task, cli, run.ID, m.Turn, cli, run.ID)
+}
+
+func defaultHome() string {
+	path, err := sysutil.AbsPath(filepath.Join(sysutil.HomeDir(), ".weeco"))
+	if err != nil {
+		return filepath.Join(sysutil.HomeDir(), ".weeco")
+	}
+	return path
 }
 
 // memberAllowedTools grants only the two CLI commands the member contract
@@ -144,6 +157,15 @@ func memberAllowedTools() []string {
 }
 
 func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'" }
+
+// shellPath leaves ordinary paths unquoted so the command prefix matches the
+// member session's explicit allow rules.
+func shellPath(s string) string {
+	if strings.ContainsAny(s, " \t'\"") {
+		return shellQuote(s)
+	}
+	return s
+}
 
 func verifyMember(run *store.Run, m *store.Member, agents []map[string]any) error {
 	a := herdr.ByPane(agents, m.PaneID)

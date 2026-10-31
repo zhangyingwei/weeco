@@ -129,8 +129,8 @@ func TestRuntimeMemberGetsNarrowReportPermission(t *testing.T) {
 			}
 		}
 	}
-	if mode != "manual" {
-		t.Fatalf("member permission mode = %q; auto mode re-judges collaboration commands", mode)
+	if mode != "auto" {
+		t.Fatalf("member permission mode = %q; members need auto for ordinary work commands", mode)
 	}
 	if !strings.Contains(rules, "weeco report") || !strings.Contains(rules, "weeco send") {
 		t.Fatalf("member must be allowed to report and message: %q", rules)

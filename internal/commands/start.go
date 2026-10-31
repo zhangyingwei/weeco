@@ -141,7 +141,7 @@ func cmdStart(args []string) int {
 		if err := store.SaveRun(run); err != nil {
 			return failStart(run, m, err)
 		}
-		if err := herdr.AgentStart(m.Agent, pane, "claude", 60000, []string{store.RunDir(run.ID)}, "manual", promptPath, memberAllowedTools()); err != nil {
+		if err := herdr.AgentStart(m.Agent, pane, "claude", 60000, []string{store.RunDir(run.ID)}, "auto", promptPath, memberAllowedTools()); err != nil {
 			return failStart(run, m, err)
 		}
 		agents, err = herdr.List("agent", "")
