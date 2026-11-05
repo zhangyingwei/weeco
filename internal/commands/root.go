@@ -6,7 +6,7 @@ import (
 )
 
 // Version is overridden by the build.
-var Version = "0.12.1"
+var Version = "0.12.2"
 
 const usageText = `weeco: a Skill and real Herdr agents for one team
 

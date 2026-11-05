@@ -2,13 +2,29 @@
 
 在 Herdr 中用真实成员协作完成目标，由当前会话负责组织、参与执行和检查结果。
 
-v0.12.1 在 v0.12.0 的成员等级、画师角色和验收记录基础上，增加 Windows 构建。当前 Herdr 会话是唯一负责人；成员在同一 tab 的独立 pane 中工作，主 pane 保留。人数包含负责人，简单任务由负责人加 1 名成员完成，复杂任务根据交付物、依赖和所需能力增加成员。负责人也可以执行具体工作。
+v0.12.2 在 v0.12.1 的 Windows 构建基础上，增加一键安装脚本。当前 Herdr 会话是唯一负责人；成员在同一 tab 的独立 pane 中工作，主 pane 保留。人数包含负责人，简单任务由负责人加 1 名成员完成，复杂任务根据交付物、依赖和所需能力增加成员。负责人也可以执行具体工作。
 
 成员分为 `senior`、`mid`、`junior`、`temp` 四个等级，默认 `mid`。每个等级的模型候选写在 `~/.weeco/config.json` 或项目 `.weeco/config.json`，用 `weeco config check` 查看实际生效的候选。需要生成图片时使用画师：`--role artist`，固定用 Codex，不单独配置图像模型。
 
 ## 安装与使用
 
 从源码构建需要 Go 1.24+。运行团队需要可用的 `herdr`、已完成登录且可正常工作的 `claude`，以及 Herdr 中的负责人 pane。使用 `--agent codex` 或 `--agent pi` 时，还需要对应 CLI 已安装并登录。
+
+从 Release 一键安装二进制和技能：
+
+```bash
+curl -fsSL https://github.com/zhangyingwei/weeco/releases/download/v0.12.2/install.sh | bash
+```
+
+Windows PowerShell：
+
+```powershell
+irm https://github.com/zhangyingwei/weeco/releases/download/v0.12.2/install.ps1 | iex
+```
+
+脚本会校验 `SHA256SUMS`，安装到 `~/.local/bin`（`WEECO_BIN_DIR` 可覆盖），然后执行 `weeco install` 安装技能；`herdr` 和 `claude` 只检测，不自动安装或登录。
+
+从源码安装：
 
 ```bash
 make install
@@ -62,7 +78,7 @@ make install
 
 最小运行记录保存在 `~/.weeco/runs/<id>/run.json`，并保留任务、报告快照。CLI 管理成员与通信，成果仍由团队按实际任务交付；负责人核对当前版本、原始来源和实际观察，说明未验证项与剩余问题。
 
-v0.12.1 沿用 v0.11.0 的扁平命令接口，增加等级、画师和验收记录，不提供旧流程兼容层。安装器自动归档并移除旧 manifest 拥有的技能、模板和同名 slash 命令，保留用户自定义内容。升级不会回滚历史信任设置；归档位置与处理结果见安装输出。
+v0.12.2 沿用 v0.11.0 的扁平命令接口，增加等级、画师和验收记录，不提供旧流程兼容层。安装器自动归档并移除旧 manifest 拥有的技能、模板和同名 slash 命令，保留用户自定义内容。升级不会回滚历史信任设置；归档位置与处理结果见安装输出。
 
 ## 开发与验证
 
@@ -74,7 +90,7 @@ make build
 
 自动回归覆盖成员生命周期、会话隔离、轮次检查、过期报告、阻塞、投递失败、等待、清理失败、栅栏规则以及 Claude/Codex/PI 三种启动参数，并通过 `go test -race ./...`。真实 Herdr 环境用 Python + Vue 记事本项目验证了 Claude 成员的主要流程：负责人写需求与任务、两名成员并行实现、backend/checker 正常提交报告、负责人独立运行测试与 HTTP 集成、独立 checker 发现后端 id 越界缺陷、`send` 返工修复；当时前端成员因 `npm` 构建被审批拒绝而提交 blocked，构建由负责人完成并以 cancel 关闭，不是所有成员都正常提交。
 
-v0.12.1 的等级、候选失败转移、画师和 `accept` 目前只经过自动回归（fake Herdr），尚未在真实 Herdr 环境验证；画师固定使用 Codex 后能否稳定产出图片，也需要单独做真实冒烟。
+v0.12.2 的等级、候选失败转移、画师和 `accept` 目前只经过自动回归（fake Herdr），尚未在真实 Herdr 环境验证；画师固定使用 Codex 后能否稳定产出图片，也需要单独做真实冒烟。
 
 真实测试暴露并修复了两个审批相关问题：成员上报曾被 auto 分类器判为缺少授权；成员 pane 停在模态提示时 herdr 仍报告 prompt 成功。现在 Claude 成员以 `bypassPermissions` 启动并挂 PreToolUse guard，Codex 使用 `workspace-write` 沙箱，PI 使用 `tool_call` guard；`send` 会等待成员真正进入 `working`。Claude/PI 的 guard 是护栏，不是沙箱，脚本混淆或解释器内删除仍可能绕过；Codex 的沙箱限制写入范围。成员权限与栅栏边界必须在任务中写清；小样本也不能证明任意领域任务都可靠。
 

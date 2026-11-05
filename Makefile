@@ -1,4 +1,4 @@
-VERSION ?= 0.12.1
+VERSION ?= 0.12.2
 GO ?= go
 LDFLAGS := -s -w -X weeco/internal/commands.Version=$(VERSION)
 PLATFORMS := darwin-arm64 darwin-amd64 linux-arm64 linux-amd64
@@ -21,6 +21,7 @@ dist:
 		$(GO) build -trimpath -ldflags '$(LDFLAGS)' -o dist/weeco-$(VERSION)-$(p) ./cmd/weeco;)
 	$(foreach p,$(WINDOWS_PLATFORMS),GOOS=windows GOARCH=$(word 2,$(subst -, ,$(p))) \
 		$(GO) build -trimpath -ldflags '$(LDFLAGS)' -o dist/weeco-$(VERSION)-$(p).exe ./cmd/weeco;)
+	cp install.sh install.ps1 dist/
 
 install: build
 	./bin/weeco install

@@ -4,7 +4,7 @@
 
 本文只描述怎么改代码、改哪些文件、按什么顺序验证。设计口径以团队模型文档为准。
 
-**实现状态**：v0.12.1 已按本文完成代码和自动测试；真实 Herdr 冒烟（包括 Codex 画师出图）尚未执行。
+**实现状态**：v0.12.2 已按本文完成代码和自动测试；真实 Herdr 冒烟（包括 Codex 画师出图）尚未执行。
 
 **本期范围**
 
@@ -381,8 +381,8 @@ weeco accept [ALIAS] --turn N --file NOTE [--run ID]
 | `internal/assets/files/skills/weeco/SKILL.md` | 负责人使用等级、画师、accept |
 | `docs/weeco-quickstart.md` | 新参数示例 |
 | `README.md` | 命令表和使用说明 |
-| `Makefile` | `VERSION ?= 0.12.1` |
-| `internal/commands/root.go` | `Version = "0.12.1"` |
+| `Makefile` | `VERSION ?= 0.12.2` |
+| `internal/commands/root.go` | `Version = "0.12.2"` |
 
 安装逻辑不需要改；`install` 会自动安装更新后的技能文件。
 

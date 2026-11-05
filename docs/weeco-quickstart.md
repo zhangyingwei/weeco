@@ -1,8 +1,22 @@
 # weeco 快速开始
 
-本页介绍 v0.12.1 的接口：在 v0.11.0 的扁平命令上增加成员等级、画师角色和验收记录。下方示例描述操作方法，实际验证范围与限制见页末。
+本页介绍 v0.12.2 的接口：在 v0.11.0 的扁平命令上增加成员等级、画师角色和验收记录。下方示例描述操作方法，实际验证范围与限制见页末。
 
 ## 安装
+
+从 Release 一键安装：
+
+```bash
+curl -fsSL https://github.com/zhangyingwei/weeco/releases/download/v0.12.2/install.sh | bash
+```
+
+Windows PowerShell：
+
+```powershell
+irm https://github.com/zhangyingwei/weeco/releases/download/v0.12.2/install.ps1 | iex
+```
+
+脚本会校验 `SHA256SUMS`，安装二进制并执行 `weeco install` 安装技能；`herdr`、`claude` 只检测并提示，不会自动安装或登录。
 
 从源码安装需要 Go 1.24+：
 
@@ -235,7 +249,7 @@ weeco status --run RUN_ID
 - 报告轮次不符：成员按自己收到的明确 turn 报告；过期结果不能改成最新轮次补报。
 - 需要用户决定：负责人只暂停依赖该决定的工作，保留相关成员，其余已授权工作可以继续。
 
-v0.12.1 已通过自动回归、race 检查、静态检查和构建。等级、候选失败转移、画师和 `accept` 目前只在 fake Herdr 测试桩上验证，尚未在真实 Herdr 环境验证；画师固定使用 Codex 后能否稳定产出图片，需要单独做真实冒烟。v0.11.0 的真实 Herdr 验证仍可作为基础参考：用 Python + Vue 记事本项目验证了 Claude 成员的主要协作流程：负责人写需求与任务、两名成员并行实现、backend/checker 正常提交报告、负责人独立测试与 HTTP 集成、独立 checker 发现后端 id 越界缺陷、`send` 返工修复。前端成员当时因 `npm` 构建被审批拒绝而提交 blocked，构建由负责人完成并以 cancel 关闭，不是全部成员正常提交。
+v0.12.2 已通过自动回归、race 检查、静态检查和构建。等级、候选失败转移、画师和 `accept` 目前只在 fake Herdr 测试桩上验证，尚未在真实 Herdr 环境验证；画师固定使用 Codex 后能否稳定产出图片，需要单独做真实冒烟。v0.11.0 的真实 Herdr 验证仍可作为基础参考：用 Python + Vue 记事本项目验证了 Claude 成员的主要协作流程：负责人写需求与任务、两名成员并行实现、backend/checker 正常提交报告、负责人独立测试与 HTTP 集成、独立 checker 发现后端 id 越界缺陷、`send` 返工修复。前端成员当时因 `npm` 构建被审批拒绝而提交 blocked，构建由负责人完成并以 cancel 关闭，不是全部成员正常提交。
 
 真实测试暴露并修复了两个审批相关问题：成员上报曾被 auto 分类器判为缺少授权；成员 pane 停在模态提示时 herdr 仍报告 prompt 成功。现在 Claude 成员以 `bypassPermissions` 启动并挂 PreToolUse guard，Codex 使用 `workspace-write` 沙箱，PI 使用 `tool_call` guard；`send` 会等待成员真正进入 `working`。Claude/PI 的 guard 是护栏，脚本混淆或解释器内删除仍可能绕过；Codex 的沙箱限制写入范围。测试时必须写清成员可操作范围；小样本也不代表所有任务质量已获证明。
 
