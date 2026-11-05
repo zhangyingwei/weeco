@@ -180,7 +180,7 @@ weeco start --name illustrator --role artist --task /abs/poster-brief.md
 - 中大型任务：跨文件/模块、新功能、多人并行、数据迁移/发布/安全/不可逆操作，使用 Herdr worktree。
 - 不确定时按中大型处理或问用户。
 
-worktree 必须在第一个 `weeco start` 之前创建，通过 `--dir` 指定；已有 run 后不能切换。worktree 从 HEAD 创建，不包含未提交改动；脏工作区先让用户决定提交、stash 或直接在当前树做。已在 linked worktree 中时直接使用，不再嵌套。交付前在 worktree 内执行 `git status --porcelain` 和 `git branch --show-current`，报告路径、分支、workspace 与未提交文件；是否合并、保留或删除由用户决定。删除前确认没有未提交改动，或用户明确接受丢失，再执行 `herdr worktree remove --workspace <id>`；有未提交内容时不能自动 `--force`。`weeco close` 只关闭成员，不删除 worktree；不要用 `workspace close` 代替清理。
+worktree 必须在第一个 `weeco start` 之前创建，通过 `--dir` 和 `--team-pane` 指定；`--dir` 是成员工作目录，`--team-pane` 是 worktree 的 root pane，成员会从它分屏并出现在 worktree workspace，负责人留在原 workspace。已有 run 后不能切换目录或团队 pane。worktree 从 HEAD 创建，不包含未提交改动；脏工作区先让用户决定提交、stash 或直接在当前树做。已在 linked worktree 中时直接使用，不再嵌套。交付前在 worktree 内执行 `git status --porcelain` 和 `git branch --show-current`，报告路径、分支、workspace 与未提交文件；是否合并、保留或删除由用户决定。删除前确认没有未提交改动，或用户明确接受丢失，再执行 `herdr worktree remove --workspace <id>`；有未提交内容时不能自动 `--force`。`weeco close` 只关闭成员，不删除 worktree；不要用 `workspace close` 代替清理。
 
 ### UI 原型
 

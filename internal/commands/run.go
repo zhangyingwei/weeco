@@ -54,6 +54,40 @@ func currentRuntime() (runtimeContext, error) {
 	return ctx, nil
 }
 
+func runTeamPane(run *store.Run) string {
+	if run.TeamPane != "" {
+		return run.TeamPane
+	}
+	return run.LeadPane
+}
+
+func runTeamLocation(run *store.Run) (string, string) {
+	if run.TeamWorkspace != "" && run.TeamTab != "" {
+		return run.TeamWorkspace, run.TeamTab
+	}
+	return run.Workspace, run.TabID
+}
+
+func resolveTeamPane(paneID string) (string, string, error) {
+	if paneID == "" {
+		return "", "", nil
+	}
+	panes, err := herdr.List("pane", "")
+	if err != nil {
+		return "", "", err
+	}
+	pane := herdr.ByPane(panes, paneID)
+	if pane == nil {
+		return "", "", fmt.Errorf("team pane %s is not available", paneID)
+	}
+	workspace := herdr.String(pane, "workspace_id")
+	tab := herdr.String(pane, "tab_id")
+	if workspace == "" || tab == "" {
+		return "", "", fmt.Errorf("team pane %s has no workspace or tab", paneID)
+	}
+	return workspace, tab, nil
+}
+
 func sameMember(ctx runtimeContext, m *store.Member) bool {
 	if ctx.Pane != m.PaneID {
 		return false
@@ -96,15 +130,20 @@ func resolveRun(ctx runtimeContext, id string) (*store.Run, string, error) {
 			continue
 		}
 		candidate := ""
-		if ctx.Pane == run.LeadPane && ctx.Session == run.LeadSession {
+		if ctx.Pane == run.LeadPane && ctx.Session == run.LeadSession &&
+			ctx.Workspace == run.Workspace && ctx.Tab == run.TabID {
 			candidate = "lead"
 		}
-		for name, m := range run.Members {
-			if m.State != "closed" && sameMember(ctx, m) {
-				candidate = name
+		teamWorkspace, teamTab := runTeamLocation(run)
+		if candidate == "" && ctx.Workspace == teamWorkspace && ctx.Tab == teamTab {
+			for name, m := range run.Members {
+				if m.State != "closed" && sameMember(ctx, m) {
+					candidate = name
+					break
+				}
 			}
 		}
-		if candidate == "" || ctx.Workspace != run.Workspace || ctx.Tab != run.TabID {
+		if candidate == "" {
 			continue
 		}
 		if found != nil {
@@ -162,7 +201,8 @@ func memberPrompt(run *store.Run, m *store.Member, task string) string {
 	if store.Home() != defaultHome() {
 		cli = "WEECO_HOME=" + shellPath(store.Home()) + " " + cli
 	}
-	return fmt.Sprintf("weeco run %s; member %s; role: %s; turn: %d; level: %s; model: %s\nLead pane: %s\nWorkspace: %s\nRead your task: %s\nOriginal task: %s\n\nRead the original goal and sources in your task. Complete only authorized work. Submit a concise report with actual deliverables, checks, evidence and limitations using:\n%s report --run %s --turn %d --file <absolute-report-file>\nIf blocked, add --blocked and explain the missing input, impact and recommendation. For progress use:\n%s send lead --run %s --file <file>\nThis member session runs with maximum permissions; destructive commands outside the run directory are blocked by the guard. Use them only within your assigned task and boundaries. You are a real Herdr agent; do not spawn subagents or recruit members. After reporting, wait for rework or closure.\n", run.ID, m.Name, m.Role, m.Turn, displayDash(m.Level), displayDash(m.Model), run.LeadPane, run.Dir, task, m.Task, cli, run.ID, m.Turn, cli, run.ID)
+	teamWorkspace, _ := runTeamLocation(run)
+	return fmt.Sprintf("weeco run %s; member %s; role: %s; turn: %d; level: %s; model: %s\nLead pane: %s\nTeam pane: %s\nTeam workspace: %s\nRun dir: %s\nRead your task: %s\nOriginal task: %s\n\nRead the original goal and sources in your task. Complete only authorized work. Submit a concise report with actual deliverables, checks, evidence and limitations using:\n%s report --run %s --turn %d --file <absolute-report-file>\nIf blocked, add --blocked and explain the missing input, impact and recommendation. For progress use:\n%s send lead --run %s --file <file>\nThis member session runs with maximum permissions; destructive commands outside the run directory are blocked by the guard. Use them only within your assigned task and boundaries. You are a real Herdr agent; do not spawn subagents or recruit members. After reporting, wait for rework or closure.\n", run.ID, m.Name, m.Role, m.Turn, displayDash(m.Level), displayDash(m.Model), run.LeadPane, runTeamPane(run), displayDash(teamWorkspace), run.Dir, task, m.Task, cli, run.ID, m.Turn, cli, run.ID)
 }
 
 func defaultHome() string {
@@ -189,7 +229,8 @@ func verifyMember(run *store.Run, m *store.Member, agents []map[string]any) erro
 	if a == nil {
 		return fmt.Errorf("member %s is missing; inspect its state before start --replace", m.Name)
 	}
-	if herdr.String(a, "tab_id") != run.TabID || !liveMemberMatches(a, m) {
+	_, teamTab := runTeamLocation(run)
+	if herdr.String(a, "tab_id") != teamTab || !liveMemberMatches(a, m) {
 		return fmt.Errorf("member %s pane belongs to a different agent session", m.Name)
 	}
 	return nil

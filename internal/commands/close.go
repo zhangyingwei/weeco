@@ -46,7 +46,8 @@ func cmdClose(args []string) int {
 				return fmt.Errorf("member %s is %s; verify a submission or cancel with a reason", name, m.State)
 			}
 		}
-		panes, err := herdr.List("pane", run.Workspace)
+		teamWorkspace, teamTab := runTeamLocation(run)
+		panes, err := herdr.List("pane", teamWorkspace)
 		if err != nil {
 			return err
 		}
@@ -66,7 +67,7 @@ func cmdClose(args []string) int {
 			pane := herdr.ByPane(panes, m.PaneID)
 			if pane != nil {
 				liveAgent := herdr.ByPane(agents, m.PaneID)
-				if herdr.String(pane, "tab_id") != run.TabID || (liveAgent != nil && !liveMemberMatches(liveAgent, m)) {
+				if herdr.String(pane, "tab_id") != teamTab || (liveAgent != nil && !liveMemberMatches(liveAgent, m)) {
 					failures = append(failures, name+": pane identity changed")
 					continue
 				}

@@ -40,11 +40,14 @@ type runtimeMemberSnapshot struct {
 }
 
 type runtimeSnapshot struct {
-	ID       string                           `json:"id"`
-	LeadPane string                           `json:"lead_pane"`
-	Dir      string                           `json:"dir"`
-	Closed   bool                             `json:"closed"`
-	Members  map[string]runtimeMemberSnapshot `json:"members"`
+	ID            string                           `json:"id"`
+	LeadPane      string                           `json:"lead_pane"`
+	TeamPane      string                           `json:"team_pane"`
+	TeamWorkspace string                           `json:"team_workspace"`
+	TeamTab       string                           `json:"team_tab"`
+	Dir           string                           `json:"dir"`
+	Closed        bool                             `json:"closed"`
+	Members       map[string]runtimeMemberSnapshot `json:"members"`
 }
 
 func setupRuntime(t *testing.T) runtimeFixture {
@@ -114,10 +117,20 @@ func (f runtimeFixture) run(t *testing.T) runtimeSnapshot {
 	return run
 }
 
-func (f runtimeFixture) asLead(t *testing.T) { t.Helper(); t.Setenv("HERDR_PANE_ID", "w1:p1") }
+func (f runtimeFixture) asLead(t *testing.T) {
+	t.Helper()
+	t.Setenv("HERDR_PANE_ID", "w1:p1")
+	t.Setenv("HERDR_WORKSPACE_ID", "w1")
+}
 func (f runtimeFixture) asMember(t *testing.T, name string) {
 	t.Helper()
-	t.Setenv("HERDR_PANE_ID", f.run(t).Members[name].PaneID)
+	run := f.run(t)
+	workspace := run.TeamWorkspace
+	if workspace == "" {
+		workspace = "w1"
+	}
+	t.Setenv("HERDR_PANE_ID", run.Members[name].PaneID)
+	t.Setenv("HERDR_WORKSPACE_ID", workspace)
 }
 
 func TestRuntimeMemberGetsFullPermissions(t *testing.T) {

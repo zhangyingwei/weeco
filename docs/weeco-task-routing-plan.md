@@ -303,7 +303,7 @@ rationale: 为什么选这个路由，以及为什么不选相邻路由
 
    - `research/review` 默认不创建 worktree；分析脚本放 run scratch，项目内分析脚本用 `analysis`；
    - `design` 只在需要写设计文档/原型时使用项目目录；代码探针放 scratch；
-   - `coding` 才按规模选择当前 checkout 或 worktree；
+   - `coding` 才按规模选择当前 checkout 或 worktree；使用 worktree 时通过 `--dir` 和 `--team-pane` 让成员进入 worktree workspace；
    - 不修改项目文件的任务不要为了“中大型”而创建 worktree。
 
 4. 验收增加：
@@ -520,7 +520,7 @@ weeco start --name ALIAS --role TEXT --task FILE \
   [--task-type research|review|design|coding] \
   [--write-scope none|analysis|docs|scoped] \
   [--level LEVEL] [--model MODEL] [--agent claude|codex|pi] \
-  [--dir PATH] [--replace] [--run ID]
+  [--dir PATH] [--team-pane PANE] [--replace] [--run ID]
 ```
 
 行为：

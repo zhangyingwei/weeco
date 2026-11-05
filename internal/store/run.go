@@ -14,14 +14,17 @@ import (
 )
 
 type Run struct {
-	ID          string             `json:"id"`
-	LeadPane    string             `json:"lead_pane"`
-	LeadSession string             `json:"lead_session"`
-	Workspace   string             `json:"workspace"`
-	TabID       string             `json:"tab_id"`
-	Dir         string             `json:"dir"`
-	Members     map[string]*Member `json:"members"`
-	Closed      bool               `json:"closed"`
+	ID            string             `json:"id"`
+	LeadPane      string             `json:"lead_pane"`
+	LeadSession   string             `json:"lead_session"`
+	Workspace     string             `json:"workspace"`
+	TabID         string             `json:"tab_id"`
+	Dir           string             `json:"dir"`
+	TeamPane      string             `json:"team_pane,omitempty"`
+	TeamWorkspace string             `json:"team_workspace,omitempty"`
+	TeamTab       string             `json:"team_tab,omitempty"`
+	Members       map[string]*Member `json:"members"`
+	Closed        bool               `json:"closed"`
 }
 
 type Member struct {

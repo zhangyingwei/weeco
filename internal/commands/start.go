@@ -17,12 +17,12 @@ import (
 )
 
 func cmdStart(args []string) int {
-	fs, err := runtimeFlags(args, []string{"name", "role", "task", "agent", "level", "model", "dir"}, []string{"replace"}, 0)
+	fs, err := runtimeFlags(args, []string{"name", "role", "task", "agent", "level", "model", "dir", "team-pane"}, []string{"replace"}, 0)
 	if err != nil {
 		return fail(err)
 	}
 	if helpRequested(fs) {
-		fmt.Println("usage: weeco start --name ALIAS --role TEXT --task FILE [--level LEVEL] [--model MODEL] [--agent claude|codex|pi] [--dir PATH] [--replace] [--run ID]")
+		fmt.Println("usage: weeco start --name ALIAS --role TEXT --task FILE [--level LEVEL] [--model MODEL] [--agent claude|codex|pi] [--dir PATH] [--team-pane PANE] [--replace] [--run ID]")
 		return 0
 	}
 	name, role := fs.value("name"), fs.value("role")
@@ -62,6 +62,11 @@ func cmdStart(args []string) int {
 	if err != nil {
 		return fail(err)
 	}
+	teamPaneFlag := fs.value("team-pane")
+	teamWorkspace, teamTab, err := resolveTeamPane(teamPaneFlag)
+	if err != nil {
+		return fail(err)
+	}
 	ctx, err := currentRuntime()
 	if err != nil {
 		return fail(err)
@@ -97,11 +102,19 @@ func cmdStart(args []string) int {
 					return e
 				}
 			}
-			run = &store.Run{ID: id, LeadPane: ctx.Pane, LeadSession: ctx.Session, Workspace: ctx.Workspace, TabID: ctx.Tab, Dir: dir, Members: map[string]*store.Member{}}
+			run = &store.Run{ID: id, LeadPane: ctx.Pane, LeadSession: ctx.Session, Workspace: ctx.Workspace, TabID: ctx.Tab, Dir: dir, TeamPane: teamPaneFlag, TeamWorkspace: teamWorkspace, TeamTab: teamTab, Members: map[string]*store.Member{}}
 			alias, err = "lead", nil
 		}
 		if err != nil {
 			return err
+		}
+		if teamPaneFlag != "" {
+			if run.TeamPane == "" {
+				return fmt.Errorf("run %s has no team pane; --team-pane cannot change an existing run", run.ID)
+			}
+			if run.TeamPane != teamPaneFlag {
+				return fmt.Errorf("run %s uses team pane %s; --team-pane cannot change an existing run", run.ID, run.TeamPane)
+			}
 		}
 		if startDir != "" {
 			if run.Dir == "" {
@@ -142,7 +155,7 @@ func cmdStart(args []string) int {
 			if err := verifyMember(run, old, agents); err != nil {
 				return err
 			}
-			fmt.Printf("member: %s\nrun: %s\npane: %s\nexisting: yes\nlevel: %s\nmodel: %s\ndir: %s\n", name, run.ID, old.PaneID, displayDash(old.Level), displayDash(old.Model), run.Dir)
+			fmt.Printf("member: %s\nrun: %s\npane: %s\nexisting: yes\nlevel: %s\nmodel: %s\ndir: %s\nteam_pane: %s\nteam_workspace: %s\n", name, run.ID, old.PaneID, displayDash(old.Level), displayDash(old.Model), run.Dir, displayDash(runTeamPane(run)), displayDash(run.TeamWorkspace))
 			return nil
 		}
 		if fs.bool("replace") && old == nil {
@@ -152,7 +165,8 @@ func cmdStart(args []string) int {
 			if herdr.ByPane(agents, old.PaneID) != nil {
 				return fmt.Errorf("member %s still has a live agent; close it before replacement", name)
 			}
-			panes, e := herdr.List("pane", run.Workspace)
+			teamWorkspace, _ := runTeamLocation(run)
+			panes, e := herdr.List("pane", teamWorkspace)
 			if e != nil {
 				return e
 			}
@@ -200,8 +214,8 @@ func cmdStart(args []string) int {
 				if err := store.SaveRun(run); err != nil {
 					return err
 				}
-				fmt.Printf("run: %s\nmember: %s\nagent: %s\nkind: %s\nlevel: %s\nmodel: %s\neffort: %s\npane: %s\nturn: %d\nattempts: %d\ndir: %s\ntask: %s\n",
-					run.ID, m.Name, m.Agent, m.Kind, displayDash(m.Level), displayDash(m.Model), displayDash(m.Effort), m.PaneID, m.Turn, len(m.Attempts), run.Dir, m.Task)
+				fmt.Printf("run: %s\nmember: %s\nagent: %s\nkind: %s\nlevel: %s\nmodel: %s\neffort: %s\npane: %s\nturn: %d\nattempts: %d\ndir: %s\nteam_pane: %s\nteam_workspace: %s\ntask: %s\n",
+					run.ID, m.Name, m.Agent, m.Kind, displayDash(m.Level), displayDash(m.Model), displayDash(m.Effort), m.PaneID, m.Turn, len(m.Attempts), run.Dir, displayDash(runTeamPane(run)), displayDash(run.TeamWorkspace), m.Task)
 				return nil
 			}
 			m.LastError = startErr.Error()
@@ -314,7 +328,7 @@ func tryStartMember(run *store.Run, m *store.Member, candidate config.Candidate,
 		return true, err
 	}
 	m.Agent = agentName
-	pane, err := herdr.PaneSplit(run.LeadPane, "right", run.Dir, 0.5)
+	pane, err := herdr.PaneSplit(runTeamPane(run), "right", run.Dir, 0.5)
 	if err != nil {
 		return true, err
 	}
@@ -340,7 +354,8 @@ func tryStartMember(run *store.Run, m *store.Member, candidate config.Candidate,
 		return false, err
 	}
 	a := herdr.ByPane(agents, pane)
-	if a == nil || herdr.String(a, "tab_id") != run.TabID {
+	_, teamTab := runTeamLocation(run)
+	if a == nil || herdr.String(a, "tab_id") != teamTab {
 		if closeErr := closeMemberPane(m); closeErr != nil {
 			return true, fmt.Errorf("agent start returned without a matching live session; close pane: %w", closeErr)
 		}

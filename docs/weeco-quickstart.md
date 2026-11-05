@@ -71,13 +71,14 @@ weeco config check
 PROJECT=/absolute/path/to/project
 herdr worktree create --cwd "$PROJECT" --branch "weeco/<slug>" --label "<task>" --no-focus
 
-# 从返回 JSON 取 result.worktree.path，然后：
+# 从返回 JSON 取 result.worktree.path 和 root pane 的 pane_id，然后：
 weeco start --name coder --role "实现功能" --level mid \
   --dir "<worktree-path>" \
+  --team-pane "<root-pane>" \
   --task "<worktree-path>/.weeco/tasks/coder.md"
 ```
 
-`--dir` 只在创建 run 时生效；已有 run 时传入不同目录会报错。`status` 会显示实际目录。worktree 必须在第一个 `weeco start` 前创建，之后不能切换。
+`--dir` 只在创建 run 时生效；已有 run 时传入不同目录会报错。`--team-pane` 指定 worktree 的 root pane，成员会从它分屏，实际出现在 worktree workspace；负责人仍留在原来的 pane/workspace。`status` 会显示实际目录、团队 pane 和团队 workspace。worktree 必须在第一个 `weeco start` 前创建，之后不能切换。
 
 worktree 从 HEAD 创建，不会带上未提交改动；工作区不干净时先确认提交、stash，还是直接在当前树做。已经在 linked worktree 中就直接使用，不再嵌套。
 

@@ -28,13 +28,18 @@ herdr worktree list --cwd "$PWD"
 herdr worktree create --cwd "$PWD" --branch "weeco/<slug>" --label "<task>" --no-focus
 ```
 
-从返回 JSON 取 `result.worktree.path` 和 `result.workspace.workspace_id`，然后：
+从返回 JSON 取 `result.worktree.path` 和 root pane 的 `pane_id`（按实际输出的嵌套层级取），然后：
 
 ```bash
-weeco start --name ... --role ... --dir "<worktree-path>" --task "<worktree-path>/.weeco/tasks/..."
+weeco start --name ... --role ... \
+  --dir "<worktree-path>" \
+  --team-pane "<root-pane>" \
+  --task "<worktree-path>/.weeco/tasks/..."
 ```
 
-- 第一条 `start` 带 `--dir`，或在该目录执行；`run.Dir` 固定后，后续 `start` 自动沿用，不重复传。
+- 第一条 `start` 带 `--dir` 和 `--team-pane`，或在该目录执行；`run.Dir` 和团队 pane 固定后，后续 `start` 自动沿用，不重复传。
+- 成员从 worktree 的 root pane 分屏，实际出现在 worktree workspace；负责人仍留在原来的 pane/workspace。
+- `status` 会显示 `team` 和 `team_workspace`；成员上报和 `send lead` 使用团队 workspace，负责人命令仍使用原 workspace。
 - 负责人的构建、测试和验收命令也要在 worktree 路径执行；不要把原 checkout 的结果当成 worktree 验证。
 - 已经在 linked worktree 中时直接使用，不再嵌套创建。
 - 工作区有未提交改动时，worktree 从 HEAD 创建，不会带上未提交内容。先问用户提交、stash，还是直接在当前树做，并记录决定。

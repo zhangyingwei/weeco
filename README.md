@@ -32,7 +32,7 @@ make install
 
 涉及用户可见界面、布局、视觉、交互、响应式或深色模式时，负责人必须先确认是否需要原型；这是“说明后直接开始”的例外。需要原型时，先在项目 `docs/prototypes/<feature>/` 产出可查看的静态原型和关键状态，用户确认后再写生产 UI；后端等非 UI 工作可以并行，UI 实现等待原型确认。
 
-开工前还要按问题规模选择工作区：小型任务直接在当前 checkout 修改；中大型任务用 Herdr worktree 隔离。worktree 必须在第一个 `weeco start` 之前创建，并通过 `--dir` 指定；worktree 从 HEAD 创建，不会带上未提交改动，脏工作区要先和用户确认提交、stash 或直接在当前树做。交付前要在 worktree 内检查 `git status`，报告路径、分支、workspace 和未提交文件，由用户决定保留还是删除。删除使用 `herdr worktree remove --workspace <id>`；有未提交内容时不能自动 `--force`。`weeco close` 只关闭成员和 run，不删除 worktree，也不能用 `workspace close` 代替清理。
+开工前还要按问题规模选择工作区：小型任务直接在当前 checkout 修改；中大型任务用 Herdr worktree 隔离。worktree 必须在第一个 `weeco start` 之前创建，并通过 `--dir` 和 `--team-pane` 指定；`--dir` 是成员工作目录，`--team-pane` 是 worktree 的 root pane，成员会实际出现在 worktree workspace，负责人仍留在原 pane。worktree 从 HEAD 创建，不会带上未提交改动，脏工作区要先和用户确认提交、stash 或直接在当前树做。交付前要在 worktree 内检查 `git status`，报告路径、分支、workspace 和未提交文件，由用户决定保留还是删除。删除使用 `herdr worktree remove --workspace <id>`；有未提交内容时不能自动 `--force`。`weeco close` 只关闭成员和 run，不删除 worktree，也不能用 `workspace close` 代替清理。
 
 用户只要计划、方案或草稿时，团队检查该产物后交付，不执行其中列出的操作。
 
@@ -46,7 +46,7 @@ make install
 
 | 命令 | 用途 |
 |---|---|
-| `start --name ALIAS --role TEXT --task FILE [--level LEVEL] [--model MODEL] [--agent claude\|codex\|pi] [--dir PATH] [--replace]` | 启动成员，首名成员自动建立 run；等级默认 `mid`，画师用 `--role artist`，`--dir` 指定 worktree 或其他工作目录 |
+| `start --name ALIAS --role TEXT --task FILE [--level LEVEL] [--model MODEL] [--agent claude\|codex\|pi] [--dir PATH] [--team-pane PANE] [--replace]` | 启动成员，首名成员自动建立 run；等级默认 `mid`，画师用 `--role artist`，`--dir` 指定 worktree 或其他工作目录，`--team-pane` 指定团队分屏的 worktree root pane |
 | `status [ALIAS] [--wait --timeout SEC] [--json]` | 查询成员与当前工作，按需等待 |
 | `send <ALIAS\|lead> --file FILE` | 给成员开启新 turn，或向负责人通信 |
 | `report --turn N --file FILE [--blocked]` | 成员提交指定轮次的成果或阻塞 |

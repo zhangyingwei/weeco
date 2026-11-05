@@ -16,12 +16,14 @@ type runtimeMemberView struct {
 }
 
 type runtimeStatus struct {
-	Run      string              `json:"run"`
-	LeadPane string              `json:"lead_pane"`
-	Dir      string              `json:"dir"`
-	Closed   bool                `json:"closed"`
-	Reason   string              `json:"reason"`
-	Members  []runtimeMemberView `json:"members"`
+	Run           string              `json:"run"`
+	LeadPane      string              `json:"lead_pane"`
+	TeamPane      string              `json:"team_pane,omitempty"`
+	TeamWorkspace string              `json:"team_workspace,omitempty"`
+	Dir           string              `json:"dir"`
+	Closed        bool                `json:"closed"`
+	Reason        string              `json:"reason"`
+	Members       []runtimeMemberView `json:"members"`
 }
 
 func cmdStatus(args []string) int {
@@ -54,6 +56,7 @@ func cmdStatus(args []string) int {
 				return err
 			}
 			out.Run, out.LeadPane, out.Closed = run.ID, run.LeadPane, run.Closed
+			out.TeamPane, out.TeamWorkspace = runTeamPane(run), run.TeamWorkspace
 			out.Dir = run.Dir
 			agents, err := herdr.List("agent", "")
 			if err != nil {
@@ -121,7 +124,7 @@ func cmdStatus(args []string) int {
 			if fs.bool("json") {
 				printJSON(out)
 			} else {
-				fmt.Printf("run: %s\nlead: %s\ndir: %s\nreason: %s\n", out.Run, out.LeadPane, out.Dir, out.Reason)
+				fmt.Printf("run: %s\nlead: %s\nteam: %s\nteam_workspace: %s\ndir: %s\nreason: %s\n", out.Run, out.LeadPane, out.TeamPane, displayDash(out.TeamWorkspace), out.Dir, out.Reason)
 				for _, v := range out.Members {
 					fmt.Printf("%-16s state=%-10s live=%-10s turn=%d level=%s model=%s role=%s attempts=%d\n",
 						v.Name, v.State, v.Live, v.Turn, displayDash(v.Level), displayDash(v.Model), displayDash(v.Role), len(v.Attempts))
