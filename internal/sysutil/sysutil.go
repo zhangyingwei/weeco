@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -41,7 +40,7 @@ func Run(cmd []string, dir string, timeout time.Duration, extraEnv []string) (Ru
 	c.Stdout = &stdout
 	c.Stderr = &stderr
 	if timeout > 0 {
-		c.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+		setProcessGroup(c)
 	}
 	if err := c.Start(); err != nil {
 		if _, ok := err.(*exec.Error); ok {
@@ -72,7 +71,7 @@ func Run(cmd []string, dir string, timeout time.Duration, extraEnv []string) (Ru
 		return res, nil
 	case <-timer:
 		if c.Process != nil {
-			_ = syscall.Kill(-c.Process.Pid, syscall.SIGKILL)
+			_ = killProcessGroup(c.Process.Pid)
 		}
 		<-done
 		res.Stdout = stdout.String()

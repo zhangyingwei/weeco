@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -80,7 +81,7 @@ func cmdInstall(args []string) int {
 	if err != nil {
 		return fail(err)
 	}
-	target := filepath.Join(bin, "weeco")
+	target := filepath.Join(bin, binaryFileName())
 	if err := checkInstallPath(target); err != nil {
 		return fail(err)
 	}
@@ -396,6 +397,13 @@ func copyFile(src, dst string) error {
 func isWeecoBinary(path string) bool {
 	res, err := sysutil.Run([]string{path, "version"}, "", 5*time.Second, nil)
 	return err == nil && res.ExitCode == 0 && strings.HasPrefix(strings.TrimSpace(res.Stdout), "weeco ")
+}
+
+func binaryFileName() string {
+	if runtime.GOOS == "windows" {
+		return "weeco.exe"
+	}
+	return "weeco"
 }
 
 func pathContains(dir string) bool {
