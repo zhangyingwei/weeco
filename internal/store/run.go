@@ -25,20 +25,38 @@ type Run struct {
 }
 
 type Member struct {
-	Name      string `json:"name"`
-	Agent     string `json:"agent"`
-	PaneID    string `json:"pane_id"`
-	Session   string `json:"session"`
-	Role      string `json:"role"`
-	Task      string `json:"task"`
-	TaskSHA   string `json:"task_sha"`
-	State     string `json:"state"`
-	Turn      int    `json:"turn"`
-	Report    string `json:"report,omitempty"`
-	Revision  int    `json:"revision"`
-	Seen      int    `json:"seen"`
-	SeenLive  string `json:"seen_live,omitempty"`
-	LastError string `json:"last_error,omitempty"`
+	Name         string    `json:"name"`
+	Agent        string    `json:"agent"`
+	Kind         string    `json:"kind,omitempty"`
+	PaneID       string    `json:"pane_id"`
+	Session      string    `json:"session"`
+	Role         string    `json:"role"`
+	Level        string    `json:"level,omitempty"`
+	Model        string    `json:"model,omitempty"`
+	Effort       string    `json:"effort,omitempty"`
+	Task         string    `json:"task"`
+	TaskSHA      string    `json:"task_sha"`
+	State        string    `json:"state"`
+	Turn         int       `json:"turn"`
+	Report       string    `json:"report,omitempty"`
+	Revision     int       `json:"revision"`
+	Seen         int       `json:"seen"`
+	SeenLive     string    `json:"seen_live,omitempty"`
+	LastError    string    `json:"last_error,omitempty"`
+	Attempts     []Attempt `json:"attempts,omitempty"`
+	AcceptedTurn int       `json:"accepted_turn,omitempty"`
+	AcceptedRev  int       `json:"accepted_revision,omitempty"`
+	AcceptNote   string    `json:"accept_note,omitempty"`
+	AcceptedAt   string    `json:"accepted_at,omitempty"`
+}
+
+// Attempt records one model candidate the lead tried before a member started.
+type Attempt struct {
+	Agent  string `json:"agent"`
+	Model  string `json:"model,omitempty"`
+	Effort string `json:"effort,omitempty"`
+	Error  string `json:"error,omitempty"`
+	At     string `json:"at"`
 }
 
 var validID = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,63}$`)

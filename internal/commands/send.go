@@ -72,6 +72,9 @@ func cmdSend(args []string) int {
 		if err := verifyMember(run, m, agents); err != nil {
 			return err
 		}
+		if a := herdr.ByPane(agents, m.PaneID); a != nil && herdr.String(a, "agent_status") == "working" {
+			return fmt.Errorf("member %s is still working; wait for its report or inspect the pane before sending", target)
+		}
 		old := *m
 		m.Turn++
 		m.Report, m.State, m.LastError = "", "running", ""

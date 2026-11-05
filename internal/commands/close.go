@@ -50,6 +50,10 @@ func cmdClose(args []string) int {
 		if err != nil {
 			return err
 		}
+		agents, err := herdr.List("agent", "")
+		if err != nil {
+			return err
+		}
 		var failures []string
 		for _, name := range names {
 			m := run.Members[name]
@@ -61,7 +65,8 @@ func cmdClose(args []string) int {
 			}
 			pane := herdr.ByPane(panes, m.PaneID)
 			if pane != nil {
-				if herdr.String(pane, "tab_id") != run.TabID || (herdr.Session(pane) != "" && herdr.Session(pane) != m.Session) {
+				liveAgent := herdr.ByPane(agents, m.PaneID)
+				if herdr.String(pane, "tab_id") != run.TabID || (liveAgent != nil && !liveMemberMatches(liveAgent, m)) {
 					failures = append(failures, name+": pane identity changed")
 					continue
 				}

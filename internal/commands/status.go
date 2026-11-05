@@ -18,6 +18,7 @@ type runtimeMemberView struct {
 type runtimeStatus struct {
 	Run      string              `json:"run"`
 	LeadPane string              `json:"lead_pane"`
+	Dir      string              `json:"dir"`
 	Closed   bool                `json:"closed"`
 	Reason   string              `json:"reason"`
 	Members  []runtimeMemberView `json:"members"`
@@ -53,6 +54,7 @@ func cmdStatus(args []string) int {
 				return err
 			}
 			out.Run, out.LeadPane, out.Closed = run.ID, run.LeadPane, run.Closed
+			out.Dir = run.Dir
 			agents, err := herdr.List("agent", "")
 			if err != nil {
 				return err
@@ -74,7 +76,7 @@ func cmdStatus(args []string) int {
 					live = "closed"
 				} else if a != nil {
 					live = herdr.String(a, "agent_status")
-					if herdr.Session(a) != m.Session {
+					if !liveMemberMatches(a, m) {
 						live = "replaced"
 					}
 				}
@@ -119,11 +121,19 @@ func cmdStatus(args []string) int {
 			if fs.bool("json") {
 				printJSON(out)
 			} else {
-				fmt.Printf("run: %s\nlead: %s\nreason: %s\n", out.Run, out.LeadPane, out.Reason)
+				fmt.Printf("run: %s\nlead: %s\ndir: %s\nreason: %s\n", out.Run, out.LeadPane, out.Dir, out.Reason)
 				for _, v := range out.Members {
-					fmt.Printf("%-16s state=%-10s live=%-10s turn=%d\n", v.Name, v.State, v.Live, v.Turn)
+					fmt.Printf("%-16s state=%-10s live=%-10s turn=%d level=%s model=%s role=%s attempts=%d\n",
+						v.Name, v.State, v.Live, v.Turn, displayDash(v.Level), displayDash(v.Model), displayDash(v.Role), len(v.Attempts))
 					if v.Report != "" {
 						fmt.Printf("  report: %s\n", v.Report)
+					}
+					if v.AcceptedTurn > 0 {
+						if v.AcceptedRev != v.Revision || v.AcceptedTurn != v.Turn || v.State != "submitted" {
+							fmt.Printf("  accepted: stale (turn %d, report or turn changed)\n", v.AcceptedTurn)
+						} else {
+							fmt.Printf("  accepted: turn %d (%s) note=%s\n", v.AcceptedTurn, v.AcceptedAt, v.AcceptNote)
+						}
 					}
 					if v.LastError != "" {
 						fmt.Printf("  warning: %s\n", v.LastError)

@@ -20,6 +20,7 @@ type runtimeContext struct {
 	Workspace string
 	Tab       string
 	Session   string
+	AgentName string
 }
 
 func currentRuntime() (runtimeContext, error) {
@@ -35,11 +36,42 @@ func currentRuntime() (runtimeContext, error) {
 	if pane == nil || herdr.String(pane, "workspace_id") != ctx.Workspace {
 		return ctx, fmt.Errorf("current Herdr pane is unavailable")
 	}
-	ctx.Tab, ctx.Session = herdr.String(pane, "tab_id"), herdr.Session(pane)
-	if ctx.Tab == "" || ctx.Session == "" {
+	agents, err := herdr.List("agent", "")
+	if err != nil {
+		return ctx, err
+	}
+	a := herdr.ByPane(agents, ctx.Pane)
+	if a == nil {
+		return ctx, fmt.Errorf("current pane has no live agent session; start Claude in Herdr first")
+	}
+	ctx.Tab = herdr.String(pane, "tab_id")
+	ctx.Session, ctx.AgentName = herdr.Session(a), herdr.String(a, "name")
+	// Herdr 0.9.3 does not expose a session for Codex; the agent name is its
+	// stable identity within the pane.
+	if ctx.Tab == "" || (ctx.Session == "" && ctx.AgentName == "") {
 		return ctx, fmt.Errorf("current pane has no live agent session; start Claude in Herdr first")
 	}
 	return ctx, nil
+}
+
+func sameMember(ctx runtimeContext, m *store.Member) bool {
+	if ctx.Pane != m.PaneID {
+		return false
+	}
+	if m.Session != "" {
+		return ctx.Session == m.Session
+	}
+	return ctx.AgentName != "" && ctx.AgentName == m.Agent
+}
+
+func liveMemberMatches(a map[string]any, m *store.Member) bool {
+	if a == nil {
+		return false
+	}
+	if m.Session != "" {
+		return herdr.Session(a) == m.Session
+	}
+	return herdr.String(a, "name") != "" && herdr.String(a, "name") == m.Agent
 }
 
 func resolveRun(ctx runtimeContext, id string) (*store.Run, string, error) {
@@ -68,7 +100,7 @@ func resolveRun(ctx runtimeContext, id string) (*store.Run, string, error) {
 			candidate = "lead"
 		}
 		for name, m := range run.Members {
-			if m.State != "closed" && ctx.Pane == m.PaneID && ctx.Session == m.Session {
+			if m.State != "closed" && sameMember(ctx, m) {
 				candidate = name
 			}
 		}
@@ -130,7 +162,7 @@ func memberPrompt(run *store.Run, m *store.Member, task string) string {
 	if store.Home() != defaultHome() {
 		cli = "WEECO_HOME=" + shellPath(store.Home()) + " " + cli
 	}
-	return fmt.Sprintf("weeco run %s; member %s; role: %s; turn: %d\nLead pane: %s\nWorkspace: %s\nRead your task: %s\nOriginal task: %s\n\nRead the original goal and sources in your task. Complete only authorized work. Submit a concise report with actual deliverables, checks, evidence and limitations using:\n%s report --run %s --turn %d --file <absolute-report-file>\nIf blocked, add --blocked and explain the missing input, impact and recommendation. For progress use:\n%s send lead --run %s --file <file>\nThe session is pre-authorized for these two weeco commands only; run them directly without asking for extra approval. You are a real Herdr agent; do not spawn subagents or recruit members. After reporting, wait for rework or closure.\n", run.ID, m.Name, m.Role, m.Turn, run.LeadPane, run.Dir, task, m.Task, cli, run.ID, m.Turn, cli, run.ID)
+	return fmt.Sprintf("weeco run %s; member %s; role: %s; turn: %d; level: %s; model: %s\nLead pane: %s\nWorkspace: %s\nRead your task: %s\nOriginal task: %s\n\nRead the original goal and sources in your task. Complete only authorized work. Submit a concise report with actual deliverables, checks, evidence and limitations using:\n%s report --run %s --turn %d --file <absolute-report-file>\nIf blocked, add --blocked and explain the missing input, impact and recommendation. For progress use:\n%s send lead --run %s --file <file>\nThis member session runs with maximum permissions; destructive commands outside the run directory are blocked by the guard. Use them only within your assigned task and boundaries. You are a real Herdr agent; do not spawn subagents or recruit members. After reporting, wait for rework or closure.\n", run.ID, m.Name, m.Role, m.Turn, displayDash(m.Level), displayDash(m.Model), run.LeadPane, run.Dir, task, m.Task, cli, run.ID, m.Turn, cli, run.ID)
 }
 
 func defaultHome() string {
@@ -139,21 +171,6 @@ func defaultHome() string {
 		return filepath.Join(sysutil.HomeDir(), ".weeco")
 	}
 	return path
-}
-
-// memberAllowedTools grants only the two CLI commands the member contract
-// needs. Work commands and every other action keep the session's normal
-// permission rules.
-func memberAllowedTools() []string {
-	exe, err := os.Executable()
-	if err != nil || exe == "" {
-		exe = "weeco"
-	}
-	rules := []string{"Bash(weeco report:*)", "Bash(weeco send:*)"}
-	if exe != "weeco" {
-		rules = append(rules, "Bash("+exe+" report:*)", "Bash("+exe+" send:*)")
-	}
-	return rules
 }
 
 func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'" }
@@ -172,7 +189,7 @@ func verifyMember(run *store.Run, m *store.Member, agents []map[string]any) erro
 	if a == nil {
 		return fmt.Errorf("member %s is missing; inspect its state before start --replace", m.Name)
 	}
-	if herdr.Session(a) != m.Session || herdr.String(a, "tab_id") != run.TabID {
+	if herdr.String(a, "tab_id") != run.TabID || !liveMemberMatches(a, m) {
 		return fmt.Errorf("member %s pane belongs to a different agent session", m.Name)
 	}
 	return nil

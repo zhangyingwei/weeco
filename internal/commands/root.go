@@ -6,7 +6,7 @@ import (
 )
 
 // Version is overridden by the build.
-var Version = "0.11.0"
+var Version = "0.12.0"
 
 const usageText = `weeco: a Skill and real Herdr agents for one team
 
@@ -17,7 +17,9 @@ commands:
   status   inspect members or wait for new reports
   send     send work, decisions or progress
   report   submit this member's result or blocker
+  accept   record that the lead accepted a submitted turn
   close    close this run's member panes
+  config   write or check the model configuration
   install  install the binary and the weeco Skill
   version  print the version
 
@@ -45,10 +47,16 @@ func Run(args []string) int {
 		return cmdSend(args[1:])
 	case "report":
 		return cmdReport(args[1:])
+	case "accept":
+		return cmdAccept(args[1:])
 	case "close":
 		return cmdClose(args[1:])
+	case "config":
+		return cmdConfig(args[1:])
 	case "install":
 		return cmdInstall(args[1:])
+	case "guard":
+		return cmdGuard(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "weeco: unknown command: %s\n", args[0])
 		return 1

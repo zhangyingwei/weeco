@@ -16,16 +16,33 @@ type runtimeFixture struct {
 
 type runtimeMemberSnapshot struct {
 	PaneID    string `json:"pane_id"`
+	Session   string `json:"session"`
 	Agent     string `json:"agent"`
+	Kind      string `json:"kind"`
+	Role      string `json:"role"`
+	Level     string `json:"level"`
+	Model     string `json:"model"`
+	Effort    string `json:"effort"`
 	State     string `json:"state"`
 	Turn      int    `json:"turn"`
+	Revision  int    `json:"revision"`
 	Report    string `json:"report"`
 	LastError string `json:"last_error"`
+	Attempts  []struct {
+		Agent  string `json:"agent"`
+		Model  string `json:"model"`
+		Effort string `json:"effort"`
+		Error  string `json:"error"`
+	} `json:"attempts"`
+	AcceptedTurn int    `json:"accepted_turn"`
+	AcceptedRev  int    `json:"accepted_revision"`
+	AcceptNote   string `json:"accept_note"`
 }
 
 type runtimeSnapshot struct {
 	ID       string                           `json:"id"`
 	LeadPane string                           `json:"lead_pane"`
+	Dir      string                           `json:"dir"`
 	Closed   bool                             `json:"closed"`
 	Members  map[string]runtimeMemberSnapshot `json:"members"`
 }
@@ -40,8 +57,10 @@ func setupRuntime(t *testing.T) runtimeFixture {
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("build fakeherdr: %v\n%s", err, output)
 	}
-	if err := os.WriteFile(filepath.Join(bin, "claude"), []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
-		t.Fatal(err)
+	for _, name := range []string{"claude", "codex", "pi"} {
+		if err := os.WriteFile(filepath.Join(bin, name), []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("WEECO_HOME", f.home)
@@ -101,7 +120,7 @@ func (f runtimeFixture) asMember(t *testing.T, name string) {
 	t.Setenv("HERDR_PANE_ID", f.run(t).Members[name].PaneID)
 }
 
-func TestRuntimeMemberGetsNarrowReportPermission(t *testing.T) {
+func TestRuntimeMemberGetsFullPermissions(t *testing.T) {
 	f := setupRuntime(t)
 	if code := Run([]string{"start", "--name", "writer", "--role", "写作", "--task", f.task}); code != 0 {
 		t.Fatalf("start failed: %d", code)
@@ -113,32 +132,41 @@ func TestRuntimeMemberGetsNarrowReportPermission(t *testing.T) {
 	var st struct {
 		Agents map[string]struct {
 			NativeArgs []string `json:"native_args"`
+			LastPrompt string   `json:"last_prompt"`
 		} `json:"agents"`
 	}
 	if err := json.Unmarshal(data, &st); err != nil {
 		t.Fatal(err)
 	}
-	rules := ""
-	mode := ""
+	mode, prompt := "", ""
+	hasAllowlist := false
 	for _, agent := range st.Agents {
+		if agent.LastPrompt != "" {
+			prompt = agent.LastPrompt
+		}
 		for i, arg := range agent.NativeArgs {
-			if arg == "--allowedTools" && i+1 < len(agent.NativeArgs) {
-				rules = agent.NativeArgs[i+1]
-			}
-			if arg == "--permission-mode" && i+1 < len(agent.NativeArgs) {
-				mode = agent.NativeArgs[i+1]
+			switch arg {
+			case "--allowedTools":
+				hasAllowlist = true
+			case "--permission-mode":
+				if i+1 < len(agent.NativeArgs) {
+					mode = agent.NativeArgs[i+1]
+				}
 			}
 		}
 	}
-	if mode != "auto" {
-		t.Fatalf("member permission mode = %q; members need auto for ordinary work commands", mode)
+	if mode != "bypassPermissions" {
+		t.Fatalf("member permission mode = %q; members must run with full permissions", mode)
 	}
-	if !strings.Contains(rules, "weeco report") || !strings.Contains(rules, "weeco send") {
-		t.Fatalf("member must be allowed to report and message: %q", rules)
+	if hasAllowlist {
+		t.Fatal("full-permission members must not also carry an allowlist")
 	}
-	for _, broad := range []string{"Bash(*)", "start", "close", "stop"} {
-		if strings.Contains(rules, broad) {
-			t.Fatalf("member permission is broader than the two CLI commands: %q", rules)
+	if !strings.Contains(prompt, "maximum permissions") {
+		t.Fatalf("member prompt does not state maximum permissions: %s", prompt)
+	}
+	for _, old := range []string{"pre-authorized for these two weeco commands only", "auto mode"} {
+		if strings.Contains(prompt, old) {
+			t.Fatalf("member prompt still describes the old narrow permission model: %s", prompt)
 		}
 	}
 }

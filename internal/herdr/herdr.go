@@ -115,29 +115,29 @@ func PaneSplit(target, direction, cwd string, ratio float64) (string, error) {
 	return id, nil
 }
 
-func AgentStart(name, paneID, kind string, timeoutMS int, dirs []string, permissionMode, systemPromptFile string, allowedTools []string) error {
+func AgentStart(name, paneID, kind string, timeoutMS int, nativeArgs []string) error {
 	args := []string{"agent", "start", name, "--kind", kind, "--pane", paneID, "--timeout", sysutil.Itoa(timeoutMS)}
-	extra := []string{}
-	for _, dir := range dirs {
-		extra = append(extra, "--add-dir", dir)
-	}
-	if permissionMode != "" {
-		extra = append(extra, "--permission-mode", permissionMode)
-	}
-	if len(allowedTools) > 0 {
-		extra = append(extra, "--allowedTools", strings.Join(allowedTools, ","))
-	}
-	if systemPromptFile != "" {
-		extra = append(extra, "--append-system-prompt-file", systemPromptFile)
-	}
-	if len(extra) > 0 {
-		args = append(append(args, "--"), extra...)
+	if len(nativeArgs) > 0 {
+		args = append(args, "--")
+		args = append(args, nativeArgs...)
 	}
 	deadline := time.Now().Add(30 * time.Second)
 	for {
 		_, err := Run(args, time.Duration(timeoutMS)*time.Millisecond+15*time.Second)
 		if err == nil {
 			return nil
+		}
+		if strings.Contains(err.Error(), "agent_not_ready") || strings.Contains(err.Error(), "blocked during startup") {
+			hint := "inspect the agent pane for a startup prompt and retry"
+			switch kind {
+			case "claude":
+				hint = "if this is a new directory, open Claude there once and accept the workspace trust prompt"
+			case "codex":
+				hint = "inspect the Codex pane for an update, trust or login prompt, then retry"
+			case "pi":
+				hint = "inspect the PI pane for a trust or login prompt, then retry"
+			}
+			return fmt.Errorf("%w; %s", err, hint)
 		}
 		if time.Now().After(deadline) || (!strings.Contains(err.Error(), "agent_pane_busy") && !strings.Contains(err.Error(), "not an available shell")) {
 			return err

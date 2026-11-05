@@ -49,6 +49,10 @@ func main() {
 			}
 		}
 	}
+	if msg := os.Getenv("FAKE_HERDR_START_ERROR"); msg != "" && len(args) >= 2 && args[0] == "agent" && args[1] == "start" {
+		fmt.Fprintln(os.Stderr, msg)
+		os.Exit(1)
+	}
 	if len(args) >= 1 && args[0] == "--version" {
 		fmt.Println("herdr 0.9.3-fake")
 		return
@@ -88,14 +92,36 @@ func main() {
 				break
 			}
 		}
-		session := map[string]any{"value": "session-" + name}
-		st.Agents[name] = map[string]any{
-			"name": name, "agent_status": "idle", "completion_seq": 0,
-			"pane_id": paneID, "tab_id": paneTab(st, paneID),
-			"agent_session": session, "native_args": native,
+		if failModel := os.Getenv("FAKE_HERDR_START_FAIL_MODEL"); failModel != "" {
+			for i, arg := range native {
+				if (arg == "--model" || arg == "-m") && i+1 < len(native) && native[i+1] == failModel {
+					fmt.Fprintln(os.Stderr, "injected model startup failure")
+					os.Exit(1)
+				}
+			}
 		}
+		session := map[string]any{"value": "session-" + name}
+		kind := flagValue(args, "--kind")
+		if kind == "" {
+			kind = "claude"
+		}
+		agent := map[string]any{
+			"name": name, "agent": kind, "agent_status": "idle", "completion_seq": 0,
+			"pane_id": paneID, "tab_id": paneTab(st, paneID),
+			"native_args": native,
+		}
+		// Herdr 0.9.3 exposes a session for Claude and PI, but not for Codex.
+		if kind != "codex" {
+			agent["agent_session"] = session
+		}
+		st.Agents[name] = agent
 		if pane := st.Panes[paneID]; pane != nil {
-			pane["agent_session"], pane["agent"] = session, "claude"
+			pane["agent"] = kind
+			if kind == "codex" {
+				delete(pane, "agent_session")
+			} else {
+				pane["agent_session"] = session
+			}
 		}
 		save()
 		out(map[string]any{"result": map[string]any{}})
@@ -148,6 +174,7 @@ func main() {
 		}
 		st.Panes[paneID] = map[string]any{
 			"pane_id": paneID, "tab_id": tabID, "workspace_id": workspace,
+			"cwd": flagValue(args, "--cwd"),
 		}
 		save()
 		out(map[string]any{"result": map[string]any{
