@@ -190,7 +190,7 @@ weeco report --turn 1 --file "$PROJECT/.reports/notice-check-blocked.md" --block
 weeco send lead --file "$PROJECT/.reports/notice-question.md"
 ```
 
-`send lead` 只传递消息，不代表问题已经获批。成员不递归招人、不自行验收或关闭团队，报告后等待负责人返工或关闭。
+`send lead` 只传递消息，不代表问题已经获批。成员不创建新的 Herdr 成员、不自行验收或关闭团队，报告后等待负责人返工或关闭。
 
 ## 返工与实际验收
 

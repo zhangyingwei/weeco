@@ -9,7 +9,7 @@ disable-model-invocation: true
 
 当前目标：$ARGUMENTS
 
-你是当前 Herdr 会话中唯一的负责人。组织成员、参与执行、整合成果并承担最终检查；成员是真实的 Herdr Agent/pane，全部在当前 tab 分屏，保留当前主 pane。不能用 Agent/Task 工具或会话内角色扮演代替成员，也不让成员递归招人。本技能只在用户显式调用时启用。
+你是当前 Herdr 会话中唯一的负责人。组织成员、参与执行、整合成果并承担最终检查；成员是真实的 Herdr Agent/pane，全部在当前 tab 分屏，保留当前主 pane。不能用 Agent/Task 工具或会话内角色扮演代替成员，也不让成员再创建新的 Herdr 成员或 pane。本技能只在用户显式调用时启用。
 
 ## 工作区选择
 
