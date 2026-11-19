@@ -2,7 +2,7 @@
 
 本文描述 weeco 组织团队、拆分任务、派发、开发和验收的操作规则。
 
-**实现状态**：v0.12.2 已实现 `--level`、等级模型候选、画师角色、`config init/check` 和 `accept`。自动回归覆盖这些路径；真实 Herdr 冒烟尚未执行，画师出图能力需要在真实环境单独确认。UI 原型确认是 Skill 层约定，CLI 不会自动识别 UI 或强制询问。
+**实现状态**：v0.12.2 已实现 `--level`、等级模型候选、画师角色、`config init/check` 和 `accept`。自动回归覆盖这些路径；真实 Herdr 冒烟尚未执行，画师出图能力需要在真实环境单独确认。成员布局为团队 workspace + 每成员一个 tab；团队关闭时移除 weeco 创建的 workspace，worktree workspace 只移除成员 tab。UI 原型确认是 Skill 层约定，CLI 不会自动识别 UI 或强制询问。
 
 ---
 
@@ -180,7 +180,7 @@ weeco start --name illustrator --role artist --task /abs/poster-brief.md
 - 中大型任务：跨文件/模块、新功能、多人并行、数据迁移/发布/安全/不可逆操作，使用 Herdr worktree。
 - 不确定时按中大型处理或问用户。
 
-worktree 必须在第一个 `weeco start` 之前创建，通过 `--dir` 和 `--team-pane` 指定；`--dir` 是成员工作目录，`--team-pane` 是 worktree 的 root pane，成员会从它分屏并出现在 worktree workspace，负责人留在原 workspace。已有 run 后不能切换目录或团队 pane。worktree 从 HEAD 创建，不包含未提交改动；脏工作区先让用户决定提交、stash 或直接在当前树做。已在 linked worktree 中时直接使用，不再嵌套。启动 Claude 成员前，weeco 会把成员工作目录和 worktree 主检出根写入 `~/.claude.json` 的 `projects[].hasTrustDialogAccepted`，避免卡在目录信任弹窗；只写成员使用的路径。交付前在 worktree 内执行 `git status --porcelain` 和 `git branch --show-current`，报告路径、分支、workspace 与未提交文件；是否合并、保留或删除由用户决定。删除前确认没有未提交改动，或用户明确接受丢失，再执行 `herdr worktree remove --workspace <id>`；有未提交内容时不能自动 `--force`。`weeco close` 只关闭成员，不删除 worktree；不要用 `workspace close` 代替清理。
+worktree 必须在第一个 `weeco start` 之前创建，通过 `--dir` 和 `--team-pane` 指定；`--dir` 是成员工作目录，`--team-pane` 是 worktree 的 root pane，成员会在该 worktree workspace 中各自使用一个 tab，负责人留在原 workspace。已有 run 后不能切换目录或团队 workspace。worktree 从 HEAD 创建，不包含未提交改动；脏工作区先让用户决定提交、stash 或直接在当前树做。已在 linked worktree 中时直接使用，不再嵌套。启动 Claude 成员前，weeco 会把成员工作目录和 worktree 主检出根写入 `~/.claude.json` 的 `projects[].hasTrustDialogAccepted`，避免卡在目录信任弹窗；只写成员使用的路径。交付前在 worktree 内执行 `git status --porcelain` 和 `git branch --show-current`，报告路径、分支、workspace 与未提交文件；是否合并、保留或删除由用户决定。删除前确认没有未提交改动，或用户明确接受丢失，再执行 `herdr worktree remove --workspace <id>`；有未提交内容时不能自动 `--force`。`weeco close` 只关闭成员，不删除 worktree；不要用 `workspace close` 代替清理。
 
 ### 计划分级与执行上限
 
@@ -230,7 +230,7 @@ weeco close
 ```
 
 - 首次 `start` 自动建立 run。记下 run ID；需要显式定位时加 `--run ID`。
-- `start` 会确认成员真正进入 `working`。未确认时保留 pane，检查后重试或取消，不当作启动失败清理。
+- `start` 会确认成员真正进入 `working`。未确认时保留成员 tab，检查后重试或取消，不当作启动失败清理。
 - `send` 给成员开新 turn。成员仍在 `working` 时拒绝发送。
 - `close` 保留负责人 pane。未提交的成员不能正常关闭，只能 `--cancel --reason`。
 

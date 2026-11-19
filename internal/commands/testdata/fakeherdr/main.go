@@ -10,10 +10,13 @@ import (
 )
 
 type state struct {
-	Agents   map[string]map[string]any `json:"agents"`
-	Panes    map[string]map[string]any `json:"panes"`
-	Tabs     map[string]map[string]any `json:"tabs"`
-	NextPane int                       `json:"next_pane,omitempty"`
+	Agents        map[string]map[string]any `json:"agents"`
+	Panes         map[string]map[string]any `json:"panes"`
+	Tabs          map[string]map[string]any `json:"tabs"`
+	Workspaces    map[string]map[string]any `json:"workspaces,omitempty"`
+	NextPane      int                       `json:"next_pane,omitempty"`
+	NextTab       int                       `json:"next_tab,omitempty"`
+	NextWorkspace int                       `json:"next_workspace,omitempty"`
 }
 
 func main() {
@@ -30,6 +33,9 @@ func main() {
 	}
 	if st.Tabs == nil {
 		st.Tabs = map[string]map[string]any{}
+	}
+	if st.Workspaces == nil {
+		st.Workspaces = map[string]map[string]any{}
 	}
 	save := func() {
 		data, _ := json.Marshal(st)
@@ -61,26 +67,111 @@ func main() {
 		fmt.Println("claude: current")
 		return
 	}
-	if len(args) >= 2 && args[0] == "tab" && args[1] == "create" {
-		n := len(st.Tabs) + 1
-		tabID := fmt.Sprintf("w1:t%d", n)
-		st.NextPane++
-		paneID := fmt.Sprintf("w1:p%d", st.NextPane)
+	if len(args) >= 2 && args[0] == "workspace" && args[1] == "create" {
+		st.NextWorkspace++
+		if st.NextWorkspace < 2 {
+			st.NextWorkspace = 2
+		}
+		workspaceID := fmt.Sprintf("w%d", st.NextWorkspace)
+		tabID := nextTabID(&st, workspaceID)
+		paneID := nextPaneID(&st, workspaceID)
+		st.Workspaces[workspaceID] = map[string]any{
+			"workspace_id": workspaceID, "label": flagValue(args, "--label"), "active_tab_id": tabID,
+		}
 		st.Tabs[tabID] = map[string]any{
-			"tab_id": tabID, "pane_id": paneID,
-			"workspace_id": flagValue(args, "--workspace"),
-			"cwd":          flagValue(args, "--cwd"),
-			"label":        flagValue(args, "--label"),
+			"tab_id": tabID, "workspace_id": workspaceID, "label": "1", "number": 1,
 		}
 		st.Panes[paneID] = map[string]any{
-			"pane_id": paneID, "tab_id": tabID,
-			"workspace_id": flagValue(args, "--workspace"),
+			"pane_id": paneID, "tab_id": tabID, "workspace_id": workspaceID,
+			"cwd": flagValue(args, "--cwd"),
+		}
+		save()
+		out(map[string]any{"result": map[string]any{
+			"workspace": map[string]any{"workspace_id": workspaceID},
+			"tab":       map[string]any{"tab_id": tabID},
+			"root_pane": map[string]any{"pane_id": paneID},
+		}})
+	}
+	if len(args) >= 2 && args[0] == "workspace" && args[1] == "list" {
+		workspaces := []map[string]any{}
+		for _, workspace := range st.Workspaces {
+			workspaces = append(workspaces, workspace)
+		}
+		out(map[string]any{"result": map[string]any{"workspaces": workspaces}})
+	}
+	if len(args) >= 3 && args[0] == "workspace" && args[1] == "get" {
+		workspace, ok := st.Workspaces[args[2]]
+		if !ok {
+			fail("workspace_not_found", "workspace "+args[2]+" not found")
+		}
+		out(map[string]any{"result": map[string]any{"workspace": workspace}})
+	}
+	if len(args) >= 3 && args[0] == "workspace" && args[1] == "close" {
+		workspaceID := args[2]
+		if _, ok := st.Workspaces[workspaceID]; !ok && !workspaceHasTabs(st, workspaceID) {
+			fail("workspace_not_found", "workspace "+workspaceID+" not found")
+		}
+		for tabID := range st.Tabs {
+			if st.Tabs[tabID]["workspace_id"] == workspaceID {
+				delete(st.Tabs, tabID)
+			}
+		}
+		for paneID, pane := range st.Panes {
+			if pane["workspace_id"] == workspaceID {
+				closePane(st, paneID)
+			}
+		}
+		delete(st.Workspaces, workspaceID)
+		save()
+		out(map[string]any{"result": map[string]any{"type": "ok"}})
+	}
+	if len(args) >= 2 && args[0] == "tab" && args[1] == "list" {
+		workspace := flagValue(args, "--workspace")
+		tabs := []map[string]any{}
+		for _, tab := range st.Tabs {
+			if workspace == "" || tab["workspace_id"] == workspace {
+				tabs = append(tabs, tab)
+			}
+		}
+		out(map[string]any{"result": map[string]any{"tabs": tabs}})
+	}
+	if len(args) >= 2 && args[0] == "tab" && args[1] == "create" {
+		workspace := flagValue(args, "--workspace")
+		tabID := nextTabID(&st, workspace)
+		paneID := nextPaneID(&st, workspace)
+		if _, ok := st.Workspaces[workspace]; !ok {
+			st.Workspaces[workspace] = map[string]any{"workspace_id": workspace, "label": workspace}
+		}
+		st.Tabs[tabID] = map[string]any{
+			"tab_id": tabID, "workspace_id": workspace,
+			"label":  flagValue(args, "--label"),
+			"number": st.NextTab,
+		}
+		st.Panes[paneID] = map[string]any{
+			"pane_id": paneID, "tab_id": tabID, "workspace_id": workspace,
+			"cwd": flagValue(args, "--cwd"),
 		}
 		save()
 		out(map[string]any{"result": map[string]any{
 			"tab":       map[string]any{"tab_id": tabID},
 			"root_pane": map[string]any{"pane_id": paneID},
 		}})
+	}
+	if len(args) >= 4 && args[0] == "tab" && args[1] == "rename" {
+		if tab, ok := st.Tabs[args[2]]; ok {
+			tab["label"] = args[3]
+		}
+		save()
+		out(map[string]any{"result": map[string]any{}})
+	}
+	if len(args) >= 3 && args[0] == "tab" && args[1] == "close" {
+		tabID := args[2]
+		if _, ok := st.Tabs[tabID]; !ok {
+			fail("tab_not_found", "tab "+tabID+" not found")
+		}
+		closeTab(&st, tabID)
+		save()
+		out(map[string]any{"result": map[string]any{}})
 	}
 	if len(args) >= 3 && args[0] == "agent" && args[1] == "start" {
 		name := args[2]
@@ -157,50 +248,29 @@ func main() {
 		}
 		out(map[string]any{"result": map[string]any{"agent": agent}})
 	}
-	if len(args) >= 2 && args[0] == "pane" && args[1] == "split" {
-		target := ""
-		if len(args) >= 3 && !strings.HasPrefix(args[2], "-") {
-			target = args[2]
-		}
-		if target == "" {
-			target = flagValue(args, "--pane")
-		}
-		st.NextPane++
-		paneID := fmt.Sprintf("w1:p%d", st.NextPane)
-		tabID := paneTab(st, target)
-		workspace := ""
-		if p, ok := st.Panes[target]; ok {
-			workspace, _ = p["workspace_id"].(string)
-		}
-		st.Panes[paneID] = map[string]any{
-			"pane_id": paneID, "tab_id": tabID, "workspace_id": workspace,
-			"cwd": flagValue(args, "--cwd"),
-		}
-		save()
-		out(map[string]any{"result": map[string]any{
-			"pane": map[string]any{"pane_id": paneID},
-		}})
-	}
 	if len(args) >= 2 && args[0] == "pane" && args[1] == "list" {
+		workspace := flagValue(args, "--workspace")
 		panes := []map[string]any{}
 		for _, p := range st.Panes {
-			panes = append(panes, p)
+			if workspace == "" || p["workspace_id"] == workspace {
+				panes = append(panes, p)
+			}
 		}
 		out(map[string]any{"result": map[string]any{"panes": panes}})
 	}
 	if len(args) >= 3 && args[0] == "pane" && args[1] == "close" {
-		closePane(st, args[2])
+		paneID := args[2]
+		if _, ok := st.Panes[paneID]; !ok {
+			fail("pane_not_found", "pane "+paneID+" not found")
+		}
+		closePaneAndPrune(&st, paneID)
 		save()
 		out(map[string]any{"result": map[string]any{}})
 	}
-	if len(args) >= 3 && args[0] == "tab" && args[1] == "close" {
-		tabID := args[2]
-		for paneID, pane := range st.Panes {
-			if pane["tab_id"] == tabID {
-				closePane(st, paneID)
-			}
+	if len(args) >= 4 && args[0] == "pane" && args[1] == "rename" {
+		if pane, ok := st.Panes[args[2]]; ok {
+			pane["label"] = args[3]
 		}
-		delete(st.Tabs, tabID)
 		save()
 		out(map[string]any{"result": map[string]any{}})
 	}
@@ -235,6 +305,95 @@ func paneTab(st state, paneID string) string {
 		}
 	}
 	return ""
+}
+
+func nextTabID(st *state, workspace string) string {
+	for {
+		st.NextTab++
+		id := fmt.Sprintf("%s:t%d", workspace, st.NextTab)
+		if _, ok := st.Tabs[id]; !ok {
+			return id
+		}
+	}
+}
+
+func nextPaneID(st *state, workspace string) string {
+	for {
+		st.NextPane++
+		id := fmt.Sprintf("%s:p%d", workspace, st.NextPane)
+		if _, ok := st.Panes[id]; !ok {
+			return id
+		}
+	}
+}
+
+func closeTab(st *state, tabID string) {
+	workspace := ""
+	if tab, ok := st.Tabs[tabID]; ok {
+		workspace, _ = tab["workspace_id"].(string)
+	}
+	for paneID, pane := range st.Panes {
+		if pane["tab_id"] == tabID {
+			closePane(*st, paneID)
+		}
+	}
+	delete(st.Tabs, tabID)
+	if workspace != "" {
+		pruneWorkspace(st, workspace)
+	}
+}
+
+func closePaneAndPrune(st *state, paneID string) {
+	workspace := ""
+	if pane, ok := st.Panes[paneID]; ok {
+		workspace, _ = pane["workspace_id"].(string)
+	}
+	tabID := paneTab(*st, paneID)
+	closePane(*st, paneID)
+	if tabID == "" {
+		return
+	}
+	for _, pane := range st.Panes {
+		if pane["tab_id"] == tabID {
+			return
+		}
+	}
+	delete(st.Tabs, tabID)
+	if workspace != "" {
+		pruneWorkspace(st, workspace)
+	}
+}
+
+// pruneWorkspace mirrors Herdr closing a workspace once its last tab is gone.
+// Untracked workspaces (the test lead's w1) are never pruned.
+func pruneWorkspace(st *state, workspace string) {
+	if _, ok := st.Workspaces[workspace]; !ok {
+		return
+	}
+	if workspaceHasTabs(*st, workspace) {
+		return
+	}
+	for paneID, pane := range st.Panes {
+		if pane["workspace_id"] == workspace {
+			closePane(*st, paneID)
+		}
+	}
+	delete(st.Workspaces, workspace)
+}
+
+func workspaceHasTabs(st state, workspace string) bool {
+	for _, tab := range st.Tabs {
+		if tab["workspace_id"] == workspace {
+			return true
+		}
+	}
+	return false
+}
+
+func fail(code, message string) {
+	data, _ := json.Marshal(map[string]any{"error": map[string]any{"code": code, "message": message}})
+	fmt.Fprintln(os.Stderr, string(data))
+	os.Exit(1)
 }
 
 func flagValue(args []string, name string) string {

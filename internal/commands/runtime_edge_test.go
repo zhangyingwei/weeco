@@ -163,7 +163,7 @@ func TestRuntimeFailedReplacementKeepsUnclosedPane(t *testing.T) {
 	for _, failure := range []string{"agent start", "agent prompt"} {
 		t.Run(failure, func(t *testing.T) {
 			f := setupRuntime(t)
-			t.Setenv("FAKE_HERDR_FAIL", failure+",pane close")
+			t.Setenv("FAKE_HERDR_FAIL", failure+",tab close")
 			if Run([]string{"start", "--name", "writer", "--role", "写作", "--task", f.task}) == 0 {
 				t.Fatal("start failure hidden")
 			}
@@ -206,7 +206,7 @@ func TestRuntimePartialCloseIsRetryable(t *testing.T) {
 		t.Fatal("report failed")
 	}
 	f.asLead(t)
-	t.Setenv("FAKE_HERDR_FAIL", "pane close")
+	t.Setenv("FAKE_HERDR_FAIL", "tab close")
 	if Run([]string{"close"}) == 0 {
 		t.Fatal("close failure hidden")
 	}
@@ -529,7 +529,7 @@ func TestRuntimeCodexMemberUsesAgentNameWithoutSession(t *testing.T) {
 		agents := st["agents"].(map[string]any)
 		delete(agents, m.Agent)
 		agents["stranger"] = map[string]any{
-			"name": "stranger", "pane_id": m.PaneID, "tab_id": "w1:t1", "agent_status": "idle",
+			"name": "stranger", "pane_id": m.PaneID, "tab_id": m.TabID, "agent_status": "idle",
 		}
 	})
 	if Run([]string{"send", "writer", "--file", f.task}) == 0 {

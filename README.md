@@ -2,7 +2,7 @@
 
 在 Herdr 中用真实成员协作完成目标，由当前会话负责组织、参与执行和检查结果。
 
-v0.12.2 在 v0.12.1 的 Windows 构建基础上，增加一键安装脚本。当前 Herdr 会话是唯一负责人；成员在同一 tab 的独立 pane 中工作，主 pane 保留。人数包含负责人，简单任务由负责人加 1 名成员完成，复杂任务根据交付物、依赖和所需能力增加成员。负责人也可以执行具体工作。
+v0.12.2 在 v0.12.1 的 Windows 构建基础上，增加一键安装脚本。当前 Herdr 会话是唯一负责人；成员在团队 workspace 中各自使用一个 tab，负责人保留原 pane。团队结束后关闭 weeco 创建的 workspace；使用 worktree 时只关闭成员 tab，保留 worktree workspace。人数包含负责人，简单任务由负责人加 1 名成员完成，复杂任务根据交付物、依赖和所需能力增加成员。负责人也可以执行具体工作。
 
 成员分为 `senior`、`mid`、`junior`、`temp` 四个等级，默认 `mid`。每个等级的模型候选写在 `~/.weeco/config.json` 或项目 `.weeco/config.json`，用 `weeco config check` 查看实际生效的候选。需要生成图片时使用画师：`--role artist`，固定用 Codex，不单独配置图像模型。
 
@@ -50,7 +50,7 @@ make install
 
 涉及用户可见界面、布局、视觉、交互、响应式或深色模式时，负责人必须先确认是否需要原型；这是“说明后直接开始”的例外。需要原型时，先在项目 `docs/prototypes/<feature>/` 产出可查看的静态原型和关键状态，用户确认后再写生产 UI；后端等非 UI 工作可以并行，UI 实现等待原型确认。
 
-开工前还要按问题规模选择工作区：小型任务直接在当前 checkout 修改；中大型任务用 Herdr worktree 隔离。worktree 必须在第一个 `weeco start` 之前创建，并通过 `--dir` 和 `--team-pane` 指定；`--dir` 是成员工作目录，`--team-pane` 是 worktree 的 root pane，成员会实际出现在 worktree workspace，负责人仍留在原 pane。worktree 从 HEAD 创建，不会带上未提交改动，脏工作区要先和用户确认提交、stash 或直接在当前树做。交付前要在 worktree 内检查 `git status`，报告路径、分支、workspace 和未提交文件，由用户决定保留还是删除。删除使用 `herdr worktree remove --workspace <id>`；有未提交内容时不能自动 `--force`。`weeco close` 只关闭成员和 run，不删除 worktree，也不能用 `workspace close` 代替清理。
+开工前还要按问题规模选择工作区：小型任务直接在当前 checkout 修改；中大型任务用 Herdr worktree 隔离。worktree 必须在第一个 `weeco start` 之前创建，并通过 `--dir` 和 `--team-pane` 指定；`--dir` 是成员工作目录，`--team-pane` 是 worktree 的 root pane，成员会出现在该 worktree workspace 中，每人一个 tab，负责人仍留在原 pane/workspace。worktree 从 HEAD 创建，不会带上未提交改动，脏工作区要先和用户确认提交、stash 或直接在当前树做。交付前要在 worktree 内检查 `git status`，报告路径、分支、workspace 和未提交文件，由用户决定保留还是删除。删除使用 `herdr worktree remove --workspace <id>`；有未提交内容时不能自动 `--force`。`weeco close` 只关闭成员和 run，不删除 worktree，也不能用 `workspace close` 代替清理。
 
 用户只要计划、方案或草稿时，团队检查该产物后交付，不执行其中列出的操作。
 
@@ -64,7 +64,7 @@ make install
 
 | 命令 | 用途 |
 |---|---|
-| `start --name ALIAS --role TEXT --task FILE [--level LEVEL] [--model MODEL] [--agent claude\|codex\|pi] [--dir PATH] [--team-pane PANE] [--replace]` | 启动成员，首名成员自动建立 run；等级默认 `mid`，画师用 `--role artist`，`--dir` 指定 worktree 或其他工作目录，`--team-pane` 指定团队分屏的 worktree root pane |
+| `start --name ALIAS --role TEXT --task FILE [--level LEVEL] [--model MODEL] [--agent claude\|codex\|pi] [--dir PATH] [--team-pane PANE] [--replace]` | 启动成员，首名成员自动建立 run；等级默认 `mid`，画师用 `--role artist`，`--dir` 指定 worktree 或其他工作目录，`--team-pane` 指定 worktree 的 root pane，成员在该 worktree workspace 中各自使用一个 tab |
 | `status [ALIAS] [--wait --timeout SEC] [--json]` | 查询成员与当前工作，按需等待 |
 | `send <ALIAS\|lead> --file FILE` | 给成员开启新 turn，或向负责人通信 |
 | `report --turn N --file FILE [--blocked]` | 成员提交指定轮次的成果或阻塞 |
@@ -74,7 +74,7 @@ make install
 
 以上命令均以 `weeco` 为前缀，支持 `--run ID` 显式定位。成员身份、任务、控制目录、当前 turn 和报告命令由 CLI 注入。报告归属成员 pane，必须携带收到的 turn，不能自动取最新轮次把旧结果冒充新结果。
 
-`send lead` 只通信，送达不等于取得决定或授权。负责人在交付边界内检查并完成必要返工后再关闭成员；待用户决定或仍需返工时保留相关 pane。`close` 保留负责人主 pane，关闭动作本身不证明成果通过；它也不会删除 worktree，worktree 的保留或删除要单独确认。`accept` 只记录负责人核验了哪些产物、实际执行和未验证项，不改变 `close` 的条件；同一轮之后又有新报告时，验收标记为过期，需要重新核验。`start` 会确认成员真正开始任务；未确认时保留 pane 并报错，负责人检查后用 `send` 重试或 `close --cancel` 结束。`send` 会等待成员真正开始新 turn；如果成员仍在 `working`，命令会拒绝，负责人应先等当前报告或检查 pane；如果 pane 停在确认提示或模态向导上，命令返回未确认错误，负责人需检查 pane 后重试。
+`send lead` 只通信，送达不等于取得决定或授权。负责人在交付边界内检查并完成必要返工后再关闭成员；待用户决定或仍需返工时保留相关成员 tab。`close` 保留负责人主 pane，关闭动作本身不证明成果通过；它也不会删除 worktree，worktree 的保留或删除要单独确认。`accept` 只记录负责人核验了哪些产物、实际执行和未验证项，不改变 `close` 的条件；同一轮之后又有新报告时，验收标记为过期，需要重新核验。`start` 会确认成员真正开始任务；未确认时保留成员 tab 并报错，负责人检查后用 `send` 重试或 `close --cancel` 结束。`send` 会等待成员真正开始新 turn；如果成员仍在 `working`，命令会拒绝，负责人应先等当前报告或检查成员 tab；如果 tab 停在确认提示或模态向导上，命令返回未确认错误，负责人需检查后重试。
 
 ## 运行记录与边界
 

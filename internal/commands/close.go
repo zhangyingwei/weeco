@@ -46,11 +46,6 @@ func cmdClose(args []string) int {
 				return fmt.Errorf("member %s is %s; verify a submission or cancel with a reason", name, m.State)
 			}
 		}
-		teamWorkspace, teamTab := runTeamLocation(run)
-		panes, err := herdr.List("pane", teamWorkspace)
-		if err != nil {
-			return err
-		}
 		agents, err := herdr.List("agent", "")
 		if err != nil {
 			return err
@@ -61,24 +56,44 @@ func cmdClose(args []string) int {
 			if m.State == "closed" {
 				continue
 			}
-			if m.PaneID == run.LeadPane {
+			if m.PaneID != "" && m.PaneID == run.LeadPane {
 				return fmt.Errorf("refusing to close the lead pane")
 			}
-			pane := herdr.ByPane(panes, m.PaneID)
-			if pane != nil {
-				liveAgent := herdr.ByPane(agents, m.PaneID)
-				if herdr.String(pane, "tab_id") != teamTab || (liveAgent != nil && !liveMemberMatches(liveAgent, m)) {
-					failures = append(failures, name+": pane identity changed")
-					continue
-				}
-				if err := herdr.PaneClose(m.PaneID); err != nil {
+			if liveAgent := herdr.ByPane(agents, m.PaneID); liveAgent != nil && !liveMemberMatches(liveAgent, m) {
+				failures = append(failures, name+": pane identity changed")
+				continue
+			}
+			if m.TabID != "" {
+				if err := herdr.TabClose(m.TabID); err != nil && !herdr.IsNotFound(err) {
 					m.LastError = err.Error()
 					failures = append(failures, name+": "+err.Error())
 					continue
 				}
+			} else if m.PaneID != "" {
+				workspace := m.WorkspaceID
+				if workspace == "" {
+					workspace, _ = runTeamLocation(run)
+				}
+				panes, err := herdr.List("pane", workspace)
+				if err != nil {
+					return err
+				}
+				if pane := herdr.ByPane(panes, m.PaneID); pane != nil {
+					_, legacyTab := runTeamLocation(run)
+					if herdr.String(pane, "tab_id") != legacyTab {
+						failures = append(failures, name+": pane identity changed")
+						continue
+					}
+					if err := herdr.PaneClose(m.PaneID); err != nil && !herdr.IsNotFound(err) {
+						m.LastError = err.Error()
+						failures = append(failures, name+": "+err.Error())
+						continue
+					}
+				}
 			}
 			m.State = "closed"
 			m.LastError = ""
+			m.PaneID, m.TabID, m.WorkspaceID, m.Session = "", "", "", ""
 			if fs.bool("cancel") {
 				m.LastError = "cancelled: " + fs.value("reason")
 			}
@@ -89,6 +104,9 @@ func cmdClose(args []string) int {
 			if m.State != "closed" {
 				run.Closed = false
 			}
+		}
+		if len(failures) == 0 {
+			cleanupOwnedWorkspace(run)
 		}
 		if err := store.SaveRun(run); err != nil {
 			return err

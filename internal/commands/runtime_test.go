@@ -18,20 +18,22 @@ type runtimeFixture struct {
 }
 
 type runtimeMemberSnapshot struct {
-	PaneID    string `json:"pane_id"`
-	Session   string `json:"session"`
-	Agent     string `json:"agent"`
-	Kind      string `json:"kind"`
-	Role      string `json:"role"`
-	Level     string `json:"level"`
-	Model     string `json:"model"`
-	Effort    string `json:"effort"`
-	State     string `json:"state"`
-	Turn      int    `json:"turn"`
-	Revision  int    `json:"revision"`
-	Report    string `json:"report"`
-	LastError string `json:"last_error"`
-	Attempts  []struct {
+	PaneID      string `json:"pane_id"`
+	TabID       string `json:"tab_id"`
+	WorkspaceID string `json:"workspace_id"`
+	Session     string `json:"session"`
+	Agent       string `json:"agent"`
+	Kind        string `json:"kind"`
+	Role        string `json:"role"`
+	Level       string `json:"level"`
+	Model       string `json:"model"`
+	Effort      string `json:"effort"`
+	State       string `json:"state"`
+	Turn        int    `json:"turn"`
+	Revision    int    `json:"revision"`
+	Report      string `json:"report"`
+	LastError   string `json:"last_error"`
+	Attempts    []struct {
 		Agent  string `json:"agent"`
 		Model  string `json:"model"`
 		Effort string `json:"effort"`
@@ -43,14 +45,15 @@ type runtimeMemberSnapshot struct {
 }
 
 type runtimeSnapshot struct {
-	ID            string                           `json:"id"`
-	LeadPane      string                           `json:"lead_pane"`
-	TeamPane      string                           `json:"team_pane"`
-	TeamWorkspace string                           `json:"team_workspace"`
-	TeamTab       string                           `json:"team_tab"`
-	Dir           string                           `json:"dir"`
-	Closed        bool                             `json:"closed"`
-	Members       map[string]runtimeMemberSnapshot `json:"members"`
+	ID                 string                           `json:"id"`
+	LeadPane           string                           `json:"lead_pane"`
+	TeamPane           string                           `json:"team_pane"`
+	TeamWorkspace      string                           `json:"team_workspace"`
+	TeamTab            string                           `json:"team_tab"`
+	TeamWorkspaceOwned bool                             `json:"team_workspace_owned"`
+	Dir                string                           `json:"dir"`
+	Closed             bool                             `json:"closed"`
+	Members            map[string]runtimeMemberSnapshot `json:"members"`
 }
 
 func setupRuntime(t *testing.T) runtimeFixture {
@@ -129,11 +132,15 @@ func (f runtimeFixture) asLead(t *testing.T) {
 func (f runtimeFixture) asMember(t *testing.T, name string) {
 	t.Helper()
 	run := f.run(t)
-	workspace := run.TeamWorkspace
+	m := run.Members[name]
+	workspace := m.WorkspaceID
+	if workspace == "" {
+		workspace = run.TeamWorkspace
+	}
 	if workspace == "" {
 		workspace = "w1"
 	}
-	t.Setenv("HERDR_PANE_ID", run.Members[name].PaneID)
+	t.Setenv("HERDR_PANE_ID", m.PaneID)
 	t.Setenv("HERDR_WORKSPACE_ID", workspace)
 }
 

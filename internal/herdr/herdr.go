@@ -1,9 +1,10 @@
 // Package herdr adapts the Herdr CLI. Every member runs as a real agent in its
-// own pane; transport failures are never reported as an empty list.
+// own tab; transport failures are never reported as an empty list.
 package herdr
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -98,21 +99,102 @@ func ByPane(items []map[string]any, id string) map[string]any {
 	return nil
 }
 
-func PaneSplit(target, direction, cwd string, ratio float64) (string, error) {
-	args := []string{"pane", "split", target, "--direction", direction, "--cwd", cwd, "--no-focus"}
-	if ratio > 0 {
-		args = append(args, "--ratio", fmt.Sprintf("%.2f", ratio))
+func ByTab(items []map[string]any, id string) map[string]any {
+	for _, m := range items {
+		if String(m, "tab_id") == id {
+			return m
+		}
+	}
+	return nil
+}
+
+func Tabs(workspace string) ([]map[string]any, error) {
+	args := []string{"tab", "list"}
+	if workspace != "" {
+		args = append(args, "--workspace", workspace)
 	}
 	data, err := Run(args, 0)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	pane, _ := resultMap(data)["pane"].(map[string]any)
-	id := String(pane, "pane_id")
-	if id == "" {
-		return "", fmt.Errorf("herdr pane split returned no pane id")
+	items, ok := resultMap(data)["tabs"].([]any)
+	if !ok {
+		return nil, fmt.Errorf("herdr tab list returned no tabs array")
 	}
-	return id, nil
+	out := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		m, ok := item.(map[string]any)
+		if !ok || String(m, "tab_id") == "" {
+			return nil, fmt.Errorf("herdr tab list returned an invalid item")
+		}
+		out = append(out, m)
+	}
+	return out, nil
+}
+
+func WorkspaceCreate(cwd, label string) (workspaceID, tabID, paneID string, err error) {
+	args := []string{"workspace", "create", "--cwd", cwd, "--no-focus"}
+	if label != "" {
+		args = append(args, "--label", label)
+	}
+	data, err := Run(args, 0)
+	if err != nil {
+		return "", "", "", err
+	}
+	result := resultMap(data)
+	workspace, _ := result["workspace"].(map[string]any)
+	tab, _ := result["tab"].(map[string]any)
+	pane, _ := result["root_pane"].(map[string]any)
+	workspaceID, tabID, paneID = String(workspace, "workspace_id"), String(tab, "tab_id"), String(pane, "pane_id")
+	if workspaceID == "" || tabID == "" || paneID == "" {
+		return "", "", "", fmt.Errorf("herdr workspace create returned an incomplete workspace")
+	}
+	return workspaceID, tabID, paneID, nil
+}
+
+func TabCreate(workspace, cwd, label string) (tabID, paneID string, err error) {
+	args := []string{"tab", "create", "--workspace", workspace, "--cwd", cwd, "--no-focus"}
+	if label != "" {
+		args = append(args, "--label", label)
+	}
+	data, err := Run(args, 0)
+	if err != nil {
+		return "", "", err
+	}
+	result := resultMap(data)
+	tab, _ := result["tab"].(map[string]any)
+	pane, _ := result["root_pane"].(map[string]any)
+	tabID, paneID = String(tab, "tab_id"), String(pane, "pane_id")
+	if tabID == "" || paneID == "" {
+		return "", "", fmt.Errorf("herdr tab create returned an incomplete tab")
+	}
+	return tabID, paneID, nil
+}
+
+func TabClose(id string) error { _, err := Run([]string{"tab", "close", id}, 0); return err }
+
+func TabRename(id, label string) error {
+	_, err := Run([]string{"tab", "rename", id, label}, 0)
+	return err
+}
+
+func WorkspaceClose(id string) error {
+	_, err := Run([]string{"workspace", "close", id}, 0)
+	return err
+}
+
+// IsNotFound reports whether Herdr says the target tab, pane or workspace is
+// already gone. Callers treat that as an idempotent cleanup success.
+func IsNotFound(err error) bool {
+	var commandErr *CommandError
+	if !errors.As(err, &commandErr) {
+		return false
+	}
+	switch commandErr.Code {
+	case "workspace_not_found", "tab_not_found", "pane_not_found":
+		return true
+	}
+	return false
 }
 
 func AgentStart(name, paneID, kind string, timeoutMS int, nativeArgs []string) error {

@@ -7,6 +7,40 @@ import (
 	"testing"
 )
 
+type fakeHerdrPane struct {
+	PaneID    string `json:"pane_id"`
+	TabID     string `json:"tab_id"`
+	Workspace string `json:"workspace_id"`
+	Cwd       string `json:"cwd"`
+	Label     string `json:"label"`
+}
+
+type fakeHerdrTab struct {
+	TabID     string `json:"tab_id"`
+	Workspace string `json:"workspace_id"`
+	Label     string `json:"label"`
+}
+
+type fakeHerdrState struct {
+	Panes      map[string]fakeHerdrPane `json:"panes"`
+	Tabs       map[string]fakeHerdrTab  `json:"tabs"`
+	Workspaces map[string]any           `json:"workspaces"`
+	Agents     map[string]any           `json:"agents"`
+}
+
+func readFakeState(t *testing.T, f runtimeFixture) fakeHerdrState {
+	t.Helper()
+	data, err := os.ReadFile(f.state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var st fakeHerdrState
+	if err := json.Unmarshal(data, &st); err != nil {
+		t.Fatal(err)
+	}
+	return st
+}
+
 func addTestPane(t *testing.T, f runtimeFixture, paneID, workspace, tab string) {
 	t.Helper()
 	f.mutate(t, func(st map[string]any) {
@@ -20,6 +54,18 @@ func addTestPane(t *testing.T, f runtimeFixture, paneID, workspace, tab string) 
 			"tab_id":       tab,
 			"workspace_id": workspace,
 		}
+		tabs, _ := st["tabs"].(map[string]any)
+		if tabs == nil {
+			tabs = map[string]any{}
+			st["tabs"] = tabs
+		}
+		tabs[tab] = map[string]any{"tab_id": tab, "workspace_id": workspace, "label": "1"}
+		workspaces, _ := st["workspaces"].(map[string]any)
+		if workspaces == nil {
+			workspaces = map[string]any{}
+			st["workspaces"] = workspaces
+		}
+		workspaces[workspace] = map[string]any{"workspace_id": workspace, "label": workspace, "active_tab_id": tab}
 	})
 }
 
@@ -32,34 +78,24 @@ func TestRuntimeStartTeamPaneUsesWorktreeWorkspace(t *testing.T) {
 		t.Fatalf("start with team pane failed: %s", output)
 	}
 	run := f.run(t)
-	if run.TeamPane != "wWT:p1" || run.TeamWorkspace != "wWT" || run.TeamTab != "wWT:t1" {
+	if run.TeamPane != "wWT:p1" || run.TeamWorkspace != "wWT" || run.TeamTab != "wWT:t1" || run.TeamWorkspaceOwned {
 		t.Fatalf("team location = %+v", run)
 	}
 	m := run.Members["writer"]
-	if m.PaneID == "" {
-		t.Fatalf("member missing: %+v", run)
+	if m.PaneID == "" || m.TabID == "" || m.TabID == "wWT:t1" || m.WorkspaceID != "wWT" {
+		t.Fatalf("member must own a tab in the worktree workspace: %+v", m)
 	}
-	data, err := os.ReadFile(f.state)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var st struct {
-		Panes map[string]struct {
-			Workspace string `json:"workspace_id"`
-			Tab       string `json:"tab_id"`
-			Cwd       string `json:"cwd"`
-		} `json:"panes"`
-	}
-	if err := json.Unmarshal(data, &st); err != nil {
-		t.Fatal(err)
-	}
+	st := readFakeState(t, f)
 	pane := st.Panes[m.PaneID]
-	if pane.Workspace != "wWT" || pane.Tab != "wWT:t1" || pane.Cwd != run.Dir {
-		t.Fatalf("member pane = %+v, want worktree workspace and cwd %s", pane, run.Dir)
+	if pane.Workspace != "wWT" || pane.TabID != m.TabID || pane.Cwd != run.Dir {
+		t.Fatalf("member pane = %+v, want worktree workspace, own tab and cwd %s", pane, run.Dir)
+	}
+	if tab := st.Tabs[m.TabID]; tab.Label != "writer" {
+		t.Fatalf("member tab = %+v, want label writer", tab)
 	}
 	code, output = runtimeOutput(t, "status", "--json")
-	if code != 0 || !strings.Contains(output, `"team_pane": "wWT:p1"`) || !strings.Contains(output, `"team_workspace": "wWT"`) {
-		t.Fatalf("status does not expose team location: %d %s", code, output)
+	if code != 0 || !strings.Contains(output, `"team_pane": "wWT:p1"`) || !strings.Contains(output, `"team_workspace": "wWT"`) || !strings.Contains(output, `"tab_id": "`+m.TabID+`"`) {
+		t.Fatalf("status does not expose team location and member tab: %d %s", code, output)
 	}
 
 	f.asMember(t, "writer")
@@ -85,19 +121,18 @@ func TestRuntimeStartTeamPaneUsesWorktreeWorkspace(t *testing.T) {
 	if got := f.run(t).Members["writer"].State; got != "closed" {
 		t.Fatalf("member state = %q, want closed", got)
 	}
-	// The lead pane must survive closing the team.
-	data, err = os.ReadFile(f.state)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var after struct {
-		Panes map[string]any `json:"panes"`
-	}
-	if err := json.Unmarshal(data, &after); err != nil {
-		t.Fatal(err)
-	}
+	after := readFakeState(t, f)
 	if _, ok := after.Panes["w1:p1"]; !ok {
 		t.Fatal("close removed the lead pane")
+	}
+	if _, ok := after.Panes["wWT:p1"]; !ok {
+		t.Fatal("close removed the worktree root pane")
+	}
+	if _, ok := after.Tabs[m.TabID]; ok {
+		t.Fatal("close left the member tab behind")
+	}
+	if _, ok := after.Workspaces["wWT"]; !ok {
+		t.Fatal("close removed the borrowed worktree workspace")
 	}
 }
 

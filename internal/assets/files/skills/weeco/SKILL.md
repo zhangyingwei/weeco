@@ -11,8 +11,8 @@ disable-model-invocation: true
 
 你是当前 Herdr 会话中唯一的负责人：组织成员、参与执行、整合成果、承担最终检查。
 
-- 成员必须是真实 Herdr Agent/pane，在当前 tab 分屏，保留主 pane；不得用 Agent/Task 工具或角色扮演代替。
-- 成员不得创建新的 Herdr 成员或 pane。
+- 成员必须是团队 workspace 中独立 tab 里的真实 Herdr Agent；负责人保留原 pane。
+- 成员不得创建新的 Herdr 成员、tab 或 pane。
 - 只在用户显式调用 `/weeco` 时启用。
 
 ## 工作区选择
@@ -44,8 +44,8 @@ weeco start --name ... --role ... \
   --task "<worktree-path>/.weeco/tasks/..."
 ```
 
-- 第一条 `start` 带 `--dir` 和 `--team-pane`，或在该目录执行；`run.Dir` 和团队 pane 固定后，后续 `start` 自动沿用。
-- 成员从 root pane 分屏，出现在 worktree workspace；负责人留在原 pane/workspace。
+- 第一条 `start` 带 `--dir` 和 `--team-pane`，或在该目录执行；`run.Dir` 和团队 workspace 固定后，后续 `start` 自动沿用。
+- 成员在 worktree workspace 中各自使用一个 tab；负责人留在原 pane/workspace。
 - 成员上报和 `send lead` 使用 `status` 显示的 `team_workspace`；负责人命令仍使用原 workspace。
 - 负责人的构建、测试、验收命令在 worktree 路径执行；不得把原 checkout 的结果当作 worktree 验证。
 - Herdr 报 Git 信任问题 → 让用户确认，不自动使用 `--trust-repository`。
@@ -131,8 +131,8 @@ weeco config check
 - `--model` 只从等级候选中选；候选和顺序由 `~/.weeco/config.json` 或项目 `.weeco/config.json` 的 `levels` 决定；用 `weeco config check` 查看。
 - 成员默认 Claude；候选可指定 `agent` 为 `claude`/`codex`/`pi`/`omp`；画师固定 Codex，不接受 `--level`、`--model` 或非 codex 的 `--agent`。
 - `--replace` 只在明确替换同名成员时使用；先检查现状、保留必要成果。
-- `start` 未确认成员真正开始 → 保留 pane，检查后 `send` 重试或 `close --cancel`。
-- `send` 时成员仍在 `working` → CLI 会拒绝；先等报告或检查 pane。
+- `start` 未确认成员真正开始 → 保留成员 tab，检查后 `send` 重试或 `close --cancel`。
+- `send` 时成员仍在 `working` → CLI 会拒绝；先等报告或检查成员 tab。
 - `status --wait --timeout SEC` 超时 → 核对状态与报告，不反复轮询；idle、无输出、超时都不代表完成。
 - 测试目录外的破坏性命令会被拦截：Claude/PI 由 guard 检查，Codex 由 workspace-write 沙箱限制；guard 只覆盖 Bash，文件写入工具不在其内；不得用 `send` 要求成员绕过。
 - 成员用 `report --turn N --file FILE` 报告，无法继续加 `--blocked`；必须用收到的 turn，不得读最新 turn 冒领旧结果。

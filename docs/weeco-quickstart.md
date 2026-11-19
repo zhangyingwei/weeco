@@ -26,7 +26,7 @@ make install
 
 已有二进制可执行 `weeco install` 安装技能。默认二进制为 `~/.local/bin/weeco`，技能和成员提示为 `~/.claude/skills/weeco/{SKILL.md,member-prompt.md}`。确认 `weeco`、`herdr` 和 `claude` 在 PATH 中，Claude 已能正常登录和工作；使用 `--agent codex`、`--agent pi` 或 `--agent omp` 时，还需要对应 CLI 已安装并登录。
 
-运行时进入 Herdr 的 pane，在要工作的目录中使用 Claude。无需项目初始化，不需要写项目 CLAUDE.md 或变更全局权限；由 weeco 启动的成员默认获得最大授权：Claude 使用 bypassPermissions，PI 以最大工具权限运行并加载 guard 扩展，Codex 使用不弹审批的 workspace-write 沙箱（开启 network_access 以访问 Herdr socket）。启动 Claude 成员前，weeco 会把成员工作目录（含 worktree 的主检出根）写入 `~/.claude.json` 的 `projects[].hasTrustDialogAccepted`，不再弹目录信任提示。当前 pane 是唯一负责人，成员都在当前 tab 中分屏，结束团队时保留主 pane。
+运行时进入 Herdr 的 pane，在要工作的目录中使用 Claude。无需项目初始化，不需要写项目 CLAUDE.md 或变更全局权限；由 weeco 启动的成员默认获得最大授权：Claude 使用 bypassPermissions，PI 以最大工具权限运行并加载 guard 扩展，Codex 使用不弹审批的 workspace-write 沙箱（开启 network_access 以访问 Herdr socket）。启动 Claude 成员前，weeco 会把成员工作目录（含 worktree 的主检出根）写入 `~/.claude.json` 的 `projects[].hasTrustDialogAccepted`，不再弹目录信任提示。当前 pane 是唯一负责人；成员在团队 workspace 中各自使用一个 tab。团队结束后 weeco 关闭自己创建的 workspace，使用 worktree 时只关闭成员 tab 并保留 worktree workspace。
 
 升级时，安装器自动归档并移除旧 manifest 拥有的技能、模板和同名 slash 命令，保留用户自定义内容；不会回滚历史信任设置。归档位置和处理结果以安装输出为准。
 
@@ -92,7 +92,7 @@ weeco start --name coder --role "实现功能" --level mid \
   --task "<worktree-path>/.weeco/tasks/coder.md"
 ```
 
-`--dir` 只在创建 run 时生效；已有 run 时传入不同目录会报错。`--team-pane` 指定 worktree 的 root pane，成员会从它分屏，实际出现在 worktree workspace；负责人仍留在原来的 pane/workspace。`status` 会显示实际目录、团队 pane 和团队 workspace。worktree 必须在第一个 `weeco start` 前创建，之后不能切换。
+`--dir` 只在创建 run 时生效；已有 run 时传入不同目录会报错。`--team-pane` 指定 worktree 的 root pane，成员会在该 worktree workspace 中各自打开一个 tab；负责人仍留在原来的 pane/workspace。`status` 会显示实际目录、团队 workspace 和每个成员的 tab。worktree 必须在第一个 `weeco start` 前创建，之后不能切换。
 
 worktree 从 HEAD 创建，不会带上未提交改动；工作区不干净时先确认提交、stash，还是直接在当前树做。已经在 linked worktree 中就直接使用，不再嵌套。
 
@@ -114,7 +114,7 @@ git branch --show-current
   herdr worktree remove --workspace <workspace-id>
   ```
   有未提交内容时不得自动使用 `--force`；只有用户明确接受丢失未提交改动时才允许。
-- `weeco close` 只关闭成员 pane 和 run，不删除 worktree。
+- `weeco close` 只关闭成员 tab 和 run，不删除 worktree。
 - 不要用 `workspace close` 代替清理：关闭 workspace 后 checkout 仍然存在，但 Herdr 不再把它当作打开的 worktree。
 
 ## 计划分级先确认执行上限
@@ -169,13 +169,13 @@ weeco status checker --wait --timeout 60
 
 任务文件、共享契约、报告和验收备注应放在项目内稳定路径（如 `.weeco/tasks/`、`.reports/`）；`/tmp` 只用于可丢弃的临时文件。`weeco start` 只复制 `--task` 指向的任务文件进 run 目录，任务里引用的共享材料必须在项目内或 run 目录有副本。
 
-首名成员自动建立 run，记下输出中的 run ID。等级默认 `mid`；`--model` 在等级候选里精确选择，用 `weeco config check` 查看可用候选。成员默认使用 Claude；配置里的候选可以指定 `agent` 为 `claude`、`codex` 或 `pi`。画师固定用 Codex，不接受 `--level`、`--model` 或非 codex 的 `--agent`。成员是同 tab 的真实 Herdr Agent，不能用 Agent/Task 工具代替。共享文件需明确写入归属。需要替换同名成员时，先检查当前状态并保存必要成果，再使用 `start` 的 `--replace`。
+首名成员自动建立 run，记下输出中的 run ID。等级默认 `mid`；`--model` 在等级候选里精确选择，用 `weeco config check` 查看可用候选。成员默认使用 Claude；配置里的候选可以指定 `agent` 为 `claude`、`codex` 或 `pi`。画师固定用 Codex，不接受 `--level`、`--model` 或非 codex 的 `--agent`。成员是独立 tab 中的真实 Herdr Agent，不能用 Agent/Task 工具代替。共享文件需明确写入归属。需要替换同名成员时，先检查当前状态并保存必要成果，再使用 `start` 的 `--replace`。
 
 测试目录之外的破坏性命令会被拦截：Claude/PI 由 weeco guard 检查，Codex 由 workspace-write 沙箱限制写入。Codex 成员会开启 `sandbox_workspace_write.network_access`，否则它无法通过 Herdr socket 上报；同时允许写 `~/.weeco/runs` 以便加锁和提交报告，其它位置仍不可写。Claude/PI 的 guard 是护栏，脚本混淆仍可能绕过，且只覆盖 Bash 命令，文件写入工具不受其检查；不要把栅栏当成绝对沙箱。
 
-`start` 发送任务后会等待成员进入 `working`；如果未确认，会保留成员 pane 并报错，先检查 pane，再用 `send` 重试或 `close --cancel` 结束，不会把成员当作启动失败直接清理。
+`start` 发送任务后会等待成员进入 `working`；如果未确认，会保留成员 tab 并报错，先检查成员 tab，再用 `send` 重试或 `close --cancel` 结束，不会把成员当作启动失败直接清理。
 
-`status [ALIAS] --json` 输出结构化状态。每次 `status --wait` 只进行一次等待：等新报告到达或到达超时时间后返回，不会持续替负责人跟进后续轮次。返回后读取实际报告和状态；等待超时时核对 pane 与任务进展，idle、超时或没有输出都不能当作完成。
+`status [ALIAS] --json` 输出结构化状态。每次 `status --wait` 只进行一次等待：等新报告到达或到达超时时间后返回，不会持续替负责人跟进后续轮次。返回后读取实际报告和状态；等待超时时核对成员 tab 与任务进展，idle、超时或没有输出都不能当作完成。
 
 ## 成员提交指定轮次
 
@@ -212,7 +212,7 @@ weeco send checker --file "$PROJECT/.reports/notice-follow-up.md"
 weeco status checker --wait --timeout 60
 ```
 
-向成员 `send` 会开启新 turn，CLI 在消息中给出轮次。补充文件说明承接哪轮与要解决的问题，成员随后使用新轮次报告。`send` 发送后会等待成员真正进入工作状态；如果 pane 停在确认提示或模态向导上，命令会返回未确认错误，先检查并处理该 pane，再重试。
+向成员 `send` 会开启新 turn，CLI 在消息中给出轮次。补充文件说明承接哪轮与要解决的问题，成员随后使用新轮次报告。`send` 发送后会等待成员真正进入工作状态；如果成员 tab 停在确认提示或模态向导上，命令会返回未确认错误，先检查并处理该 tab，再重试。
 
 按实际任务选择证据：端口修改检查当前进程与新端口能否启动；通知检查事实、字数和缺项；迁移方案检查步骤、对账、回滚、失败重跑和未验证依赖。方案完整不能证明生产迁移已执行，模拟检查也不能冒称真实用户反馈。独立检查从原始目标和来源重新核验，并尝试找反例。
 
@@ -254,9 +254,9 @@ weeco status --run RUN_ID
 
 ## 遇到阻塞
 
-- 无法启动真实成员：先确认当前会话位于 Herdr pane，`herdr` 与 `claude` 可用，并检查启动命令的实际错误；如果报 `blocked during startup`，weeco 已预置工作目录信任，检查 pane 里是否还有其他提示或模态框；不要用单会话角色模拟替代。
-- 成员没有报告：查看指定成员与 turn，核对 pane 和任务进展，不能靠 idle 推定完成。
-- `send` 被拒绝：如果提示成员仍在 `working`，先等当前报告或检查 pane，不能把旧 turn 的完成当成新 turn 已送达。
+- 无法启动真实成员：先确认当前会话位于 Herdr pane，`herdr` 与 `claude` 可用，并检查启动命令的实际错误；如果报 `blocked during startup`，weeco 已预置工作目录信任，检查成员 tab 里是否还有其他提示或模态框；不要用单会话角色模拟替代。
+- 成员没有报告：查看指定成员与 turn，核对成员 tab 和任务进展，不能靠 idle 推定完成。
+- `send` 被拒绝：如果提示成员仍在 `working`，先等当前报告或检查成员 tab，不能把旧 turn 的完成当成新 turn 已送达。
 - 报告轮次不符：成员按自己收到的明确 turn 报告；过期结果不能改成最新轮次补报。
 - 需要用户决定：负责人只暂停依赖该决定的工作，保留相关成员，其余已授权工作可以继续。
 

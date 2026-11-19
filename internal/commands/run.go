@@ -54,13 +54,8 @@ func currentRuntime() (runtimeContext, error) {
 	return ctx, nil
 }
 
-func runTeamPane(run *store.Run) string {
-	if run.TeamPane != "" {
-		return run.TeamPane
-	}
-	return run.LeadPane
-}
-
+// runTeamLocation is the legacy shared-tab location used by runs created
+// before members moved into their own tabs.
 func runTeamLocation(run *store.Run) (string, string) {
 	if run.TeamWorkspace != "" && run.TeamTab != "" {
 		return run.TeamWorkspace, run.TeamTab
@@ -134,8 +129,7 @@ func resolveRun(ctx runtimeContext, id string) (*store.Run, string, error) {
 			ctx.Workspace == run.Workspace && ctx.Tab == run.TabID {
 			candidate = "lead"
 		}
-		teamWorkspace, teamTab := runTeamLocation(run)
-		if candidate == "" && ctx.Workspace == teamWorkspace && ctx.Tab == teamTab {
+		if candidate == "" {
 			for name, m := range run.Members {
 				if m.State != "closed" && sameMember(ctx, m) {
 					candidate = name
@@ -201,8 +195,11 @@ func memberPrompt(run *store.Run, m *store.Member, task string) string {
 	if store.Home() != defaultHome() {
 		cli = "WEECO_HOME=" + shellPath(store.Home()) + " " + cli
 	}
-	teamWorkspace, _ := runTeamLocation(run)
-	return fmt.Sprintf("weeco run %s; member %s; role: %s; turn: %d; level: %s; model: %s\nLead pane: %s\nTeam pane: %s\nTeam workspace: %s\nRun dir: %s\nRead your task: %s\nOriginal task: %s\n\nRead the original goal and sources in your task. Complete only authorized work. Submit a concise report with actual deliverables, checks, evidence and limitations using:\n%s report --run %s --turn %d --file <absolute-report-file>\nIf blocked, add --blocked and explain the missing input, impact and recommendation. For progress use:\n%s send lead --run %s --file <file>\nThis member session runs with maximum permissions; destructive commands outside the run directory are blocked by the guard. Use them only within your assigned task and boundaries. You are a real Herdr agent; do not create additional Herdr agents or panes as team members. Subagents in this session are allowed for local work, but they do not replace real members, turn-based reporting, or lead review. After reporting, wait for rework or closure.\n", run.ID, m.Name, m.Role, m.Turn, displayDash(m.Level), displayDash(m.Model), run.LeadPane, runTeamPane(run), displayDash(teamWorkspace), run.Dir, task, m.Task, cli, run.ID, m.Turn, cli, run.ID)
+	teamWorkspace := run.TeamWorkspace
+	if teamWorkspace == "" {
+		teamWorkspace = run.Workspace
+	}
+	return fmt.Sprintf("weeco run %s; member %s; role: %s; turn: %d; level: %s; model: %s\nLead pane: %s\nTeam workspace: %s\nRun dir: %s\nRead your task: %s\nOriginal task: %s\n\nRead the original goal and sources in your task. Complete only authorized work. Submit a concise report with actual deliverables, checks, evidence and limitations using:\n%s report --run %s --turn %d --file <absolute-report-file>\nIf blocked, add --blocked and explain the missing input, impact and recommendation. For progress use:\n%s send lead --run %s --file <file>\nThis member session runs with maximum permissions; destructive commands outside the run directory are blocked by the guard. Use them only within your assigned task and boundaries. You are a real Herdr agent; do not create additional Herdr agents or panes as team members. Subagents in this session are allowed for local work, but they do not replace real members, turn-based reporting, or lead review. After reporting, wait for rework or closure.\n", run.ID, m.Name, m.Role, m.Turn, displayDash(m.Level), displayDash(m.Model), run.LeadPane, displayDash(teamWorkspace), run.Dir, task, m.Task, cli, run.ID, m.Turn, cli, run.ID)
 }
 
 func defaultHome() string {
@@ -229,8 +226,11 @@ func verifyMember(run *store.Run, m *store.Member, agents []map[string]any) erro
 	if a == nil {
 		return fmt.Errorf("member %s is missing; inspect its state before start --replace", m.Name)
 	}
-	_, teamTab := runTeamLocation(run)
-	if herdr.String(a, "tab_id") != teamTab || !liveMemberMatches(a, m) {
+	tab := m.TabID
+	if tab == "" {
+		_, tab = runTeamLocation(run)
+	}
+	if herdr.String(a, "tab_id") != tab || !liveMemberMatches(a, m) {
 		return fmt.Errorf("member %s pane belongs to a different agent session", m.Name)
 	}
 	return nil

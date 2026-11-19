@@ -155,7 +155,7 @@ func cmdStart(args []string) int {
 			if err := verifyMember(run, old, agents); err != nil {
 				return err
 			}
-			fmt.Printf("member: %s\nrun: %s\npane: %s\nexisting: yes\nlevel: %s\nmodel: %s\ndir: %s\nteam_pane: %s\nteam_workspace: %s\n", name, run.ID, old.PaneID, displayDash(old.Level), displayDash(old.Model), run.Dir, displayDash(runTeamPane(run)), displayDash(run.TeamWorkspace))
+			fmt.Printf("member: %s\nrun: %s\npane: %s\ntab: %s\nexisting: yes\nlevel: %s\nmodel: %s\ndir: %s\nteam_workspace: %s\n", name, run.ID, old.PaneID, displayDash(old.TabID), displayDash(old.Level), displayDash(old.Model), run.Dir, displayDash(run.TeamWorkspace))
 			return nil
 		}
 		if fs.bool("replace") && old == nil {
@@ -165,13 +165,30 @@ func cmdStart(args []string) int {
 			if herdr.ByPane(agents, old.PaneID) != nil {
 				return fmt.Errorf("member %s still has a live agent; close it before replacement", name)
 			}
-			teamWorkspace, _ := runTeamLocation(run)
-			panes, e := herdr.List("pane", teamWorkspace)
-			if e != nil {
-				return e
-			}
-			if herdr.ByPane(panes, old.PaneID) != nil {
-				return fmt.Errorf("old pane still exists; inspect and close it before replacement")
+			if old.TabID != "" {
+				workspace := old.WorkspaceID
+				if workspace == "" {
+					workspace = run.TeamWorkspace
+				}
+				if workspace == "" {
+					workspace = run.Workspace
+				}
+				tabs, e := herdr.Tabs(workspace)
+				if e != nil && !herdr.IsNotFound(e) {
+					return e
+				}
+				if e == nil && herdr.ByTab(tabs, old.TabID) != nil {
+					return fmt.Errorf("old tab still exists; inspect and close it before replacement")
+				}
+			} else {
+				teamWorkspace, _ := runTeamLocation(run)
+				panes, e := herdr.List("pane", teamWorkspace)
+				if e != nil {
+					return e
+				}
+				if herdr.ByPane(panes, old.PaneID) != nil {
+					return fmt.Errorf("old pane still exists; inspect and close it before replacement")
+				}
 			}
 		}
 		m := &store.Member{Name: name, Kind: candidates[0].Agent, Role: role, TaskSHA: sysutil.SHA256Bytes(task), State: "starting", Turn: 1}
@@ -214,8 +231,8 @@ func cmdStart(args []string) int {
 				if err := store.SaveRun(run); err != nil {
 					return err
 				}
-				fmt.Printf("run: %s\nmember: %s\nagent: %s\nkind: %s\nlevel: %s\nmodel: %s\neffort: %s\npane: %s\nturn: %d\nattempts: %d\ndir: %s\nteam_pane: %s\nteam_workspace: %s\ntask: %s\n",
-					run.ID, m.Name, m.Agent, m.Kind, displayDash(m.Level), displayDash(m.Model), displayDash(m.Effort), m.PaneID, m.Turn, len(m.Attempts), run.Dir, displayDash(runTeamPane(run)), displayDash(run.TeamWorkspace), m.Task)
+				fmt.Printf("run: %s\nmember: %s\nagent: %s\nkind: %s\nlevel: %s\nmodel: %s\neffort: %s\npane: %s\ntab: %s\nturn: %d\nattempts: %d\ndir: %s\nteam_workspace: %s\ntask: %s\n",
+					run.ID, m.Name, m.Agent, m.Kind, displayDash(m.Level), displayDash(m.Model), displayDash(m.Effort), m.PaneID, displayDash(m.TabID), m.Turn, len(m.Attempts), run.Dir, displayDash(run.TeamWorkspace), m.Task)
 				return nil
 			}
 			m.LastError = startErr.Error()
@@ -228,8 +245,9 @@ func cmdStart(args []string) int {
 					return fmt.Errorf("%v; save failed: %w", startErr, err)
 				}
 				if m.PaneID != "" {
-					return fmt.Errorf("%v; member %s pane kept for inspection: %s", startErr, m.Name, m.PaneID)
+					return fmt.Errorf("%v; member %s tab kept for inspection: %s", startErr, m.Name, m.TabID)
 				}
+				cleanupOwnedWorkspace(run)
 				return startErr
 			}
 			if err := store.SaveRun(run); err != nil {
@@ -237,8 +255,9 @@ func cmdStart(args []string) int {
 			}
 		}
 		m.State = "failed"
-		m.PaneID, m.Session = "", ""
+		m.PaneID, m.TabID, m.WorkspaceID, m.Session = "", "", "", ""
 		m.LastError = "all candidates failed: " + strings.Join(failures, "; ")
+		cleanupOwnedWorkspace(run)
 		if err := store.SaveRun(run); err != nil {
 			return fmt.Errorf("start failed: %s; save failed: %w", m.LastError, err)
 		}
@@ -337,11 +356,10 @@ func tryStartMember(run *store.Run, m *store.Member, candidate config.Candidate,
 		return true, err
 	}
 	m.Agent = agentName
-	pane, err := herdr.PaneSplit(runTeamPane(run), "right", run.Dir, 0.5)
+	_, pane, err := openMemberTab(run, m)
 	if err != nil {
 		return true, err
 	}
-	m.PaneID = pane
 	if err := store.SaveRun(run); err != nil {
 		return true, err
 	}
@@ -350,36 +368,35 @@ func tryStartMember(run *store.Run, m *store.Member, candidate config.Candidate,
 			m.State = "failed"
 			return true, err
 		}
-		if closeErr := closeMemberPane(m); closeErr != nil {
-			return true, fmt.Errorf("%v; close pane: %w", err, closeErr)
+		if closeErr := closeMemberTab(m); closeErr != nil {
+			return true, fmt.Errorf("%v; close tab: %w", err, closeErr)
 		}
 		return false, err
 	}
 	agents, err := herdr.List("agent", "")
 	if err != nil {
-		if closeErr := closeMemberPane(m); closeErr != nil {
-			return true, fmt.Errorf("%v; close pane: %w", err, closeErr)
+		if closeErr := closeMemberTab(m); closeErr != nil {
+			return true, fmt.Errorf("%v; close tab: %w", err, closeErr)
 		}
 		return false, err
 	}
 	a := herdr.ByPane(agents, pane)
-	_, teamTab := runTeamLocation(run)
-	if a == nil || herdr.String(a, "tab_id") != teamTab {
-		if closeErr := closeMemberPane(m); closeErr != nil {
-			return true, fmt.Errorf("agent start returned without a matching live session; close pane: %w", closeErr)
+	if a == nil || herdr.String(a, "tab_id") != m.TabID {
+		if closeErr := closeMemberTab(m); closeErr != nil {
+			return true, fmt.Errorf("agent start returned without a matching live session; close tab: %w", closeErr)
 		}
 		return false, fmt.Errorf("agent start returned without a matching live session")
 	}
 	session, agentNameLive := herdr.Session(a), herdr.String(a, "name")
 	if agentNameLive != "" && agentNameLive != m.Agent {
-		if closeErr := closeMemberPane(m); closeErr != nil {
-			return true, fmt.Errorf("agent start returned a different agent name; close pane: %w", closeErr)
+		if closeErr := closeMemberTab(m); closeErr != nil {
+			return true, fmt.Errorf("agent start returned a different agent name; close tab: %w", closeErr)
 		}
 		return false, fmt.Errorf("agent start returned a different agent name")
 	}
 	if session == "" && (candidate.Agent == "claude" || agentNameLive == "") {
-		if closeErr := closeMemberPane(m); closeErr != nil {
-			return true, fmt.Errorf("agent start returned without a matching live session; close pane: %w", closeErr)
+		if closeErr := closeMemberTab(m); closeErr != nil {
+			return true, fmt.Errorf("agent start returned without a matching live session; close tab: %w", closeErr)
 		}
 		return false, fmt.Errorf("agent start returned without a matching live session")
 	}
@@ -399,8 +416,8 @@ func tryStartMember(run *store.Run, m *store.Member, candidate config.Candidate,
 		if errors.As(err, &commandErr) && commandErr.Code == "agent_blocked" {
 			return true, err
 		}
-		if closeErr := closeMemberPane(m); closeErr != nil {
-			return true, fmt.Errorf("%v; close pane: %w", err, closeErr)
+		if closeErr := closeMemberTab(m); closeErr != nil {
+			return true, fmt.Errorf("%v; close tab: %w", err, closeErr)
 		}
 		return true, err
 	}
@@ -427,15 +444,71 @@ func stopStartError(err error) bool {
 	return false
 }
 
-func closeMemberPane(m *store.Member) error {
-	if m.PaneID == "" {
-		return nil
+// openMemberTab gives a member a full-width tab. The first member of an owned
+// workspace reuses the workspace's root tab; later members get a new tab.
+func openMemberTab(run *store.Run, m *store.Member) (string, string, error) {
+	if run.TeamWorkspace == "" {
+		workspace, tab, pane, err := herdr.WorkspaceCreate(run.Dir, "weeco "+run.ID)
+		if err != nil {
+			return "", "", err
+		}
+		run.TeamWorkspace, run.TeamWorkspaceOwned = workspace, true
+		run.TeamPane, run.TeamTab = "", ""
+		if err := herdr.TabRename(tab, m.Name); err != nil {
+			return "", "", err
+		}
+		m.WorkspaceID, m.TabID, m.PaneID = workspace, tab, pane
+		return tab, pane, nil
 	}
-	if err := herdr.PaneClose(m.PaneID); err != nil {
-		return err
+	if run.TeamWorkspaceOwned {
+		tabs, err := herdr.Tabs(run.TeamWorkspace)
+		if err != nil || len(tabs) == 0 {
+			if err != nil && !herdr.IsNotFound(err) {
+				return "", "", err
+			}
+			run.TeamWorkspace, run.TeamWorkspaceOwned = "", false
+			run.TeamTab, run.TeamPane = "", ""
+			return openMemberTab(run, m)
+		}
 	}
-	m.PaneID, m.Session = "", ""
+	tab, pane, err := herdr.TabCreate(run.TeamWorkspace, run.Dir, m.Name)
+	if err != nil {
+		return "", "", err
+	}
+	m.WorkspaceID, m.TabID, m.PaneID = run.TeamWorkspace, tab, pane
+	return tab, pane, nil
+}
+
+func closeMemberTab(m *store.Member) error {
+	if m.TabID != "" {
+		if err := herdr.TabClose(m.TabID); err != nil && !herdr.IsNotFound(err) {
+			return err
+		}
+	} else if m.PaneID != "" {
+		if err := herdr.PaneClose(m.PaneID); err != nil && !herdr.IsNotFound(err) {
+			return err
+		}
+	}
+	m.PaneID, m.TabID, m.WorkspaceID, m.Session = "", "", "", ""
 	return nil
+}
+
+// cleanupOwnedWorkspace removes a workspace weeco created when no member tab
+// remains. Borrowed (worktree) workspaces are never closed.
+func cleanupOwnedWorkspace(run *store.Run) {
+	if !run.TeamWorkspaceOwned || run.TeamWorkspace == "" {
+		return
+	}
+	for _, m := range run.Members {
+		if m.TabID != "" {
+			return
+		}
+	}
+	if err := herdr.WorkspaceClose(run.TeamWorkspace); err != nil && !herdr.IsNotFound(err) {
+		return
+	}
+	run.TeamWorkspace, run.TeamWorkspaceOwned = "", false
+	run.TeamTab, run.TeamPane = "", ""
 }
 
 func newAgentName() (string, error) {
