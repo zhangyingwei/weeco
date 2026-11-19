@@ -309,6 +309,9 @@ func tryStartMember(run *store.Run, m *store.Member, candidate config.Candidate,
 	settingsPath, extensionPath := "", ""
 	switch candidate.Agent {
 	case "claude":
+		if err := acceptClaudeWorkspaceTrust(run.Dir); err != nil {
+			return true, fmt.Errorf("accept Claude workspace trust: %w", err)
+		}
 		settingsPath = filepath.Join(memberDir(run, m), "claude-guard-settings.json")
 		if err := writeClaudeGuardSettings(settingsPath, exe, run.Dir); err != nil {
 			return true, err
@@ -318,15 +321,15 @@ func tryStartMember(run *store.Run, m *store.Member, candidate config.Candidate,
 		if err := writePIGuardExtension(extensionPath, exe, run.Dir); err != nil {
 			return true, err
 		}
-	}
-	nativeArgs, err := memberNativeArgs(candidate.Agent, run, promptPath, settingsPath, extensionPath, candidate.Model, candidate.Effort)
-	if err != nil {
 	case "omp":
 		// OMP shares PI's extension API, so the same tool_call guard applies.
 		extensionPath = filepath.Join(memberDir(run, m), "omp-guard-extension.js")
 		if err := writePIGuardExtension(extensionPath, exe, run.Dir); err != nil {
 			return true, err
 		}
+	}
+	nativeArgs, err := memberNativeArgs(candidate.Agent, run, promptPath, settingsPath, extensionPath, candidate.Model, candidate.Effort)
+	if err != nil {
 		return true, err
 	}
 	agentName, err := newAgentName()

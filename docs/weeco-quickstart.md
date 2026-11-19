@@ -26,7 +26,7 @@ make install
 
 已有二进制可执行 `weeco install` 安装技能。默认二进制为 `~/.local/bin/weeco`，技能和成员提示为 `~/.claude/skills/weeco/{SKILL.md,member-prompt.md}`。确认 `weeco`、`herdr` 和 `claude` 在 PATH 中，Claude 已能正常登录和工作；使用 `--agent codex`、`--agent pi` 或 `--agent omp` 时，还需要对应 CLI 已安装并登录。
 
-运行时进入 Herdr 的 pane，在要工作的目录中使用 Claude。无需项目初始化，不需要写项目 CLAUDE.md 或变更全局信任、权限；由 weeco 启动的成员默认获得最大授权：Claude 使用 bypassPermissions，PI 以最大工具权限运行并加载 guard 扩展，Codex 使用不弹审批的 workspace-write 沙箱（开启 network_access 以访问 Herdr socket）。首次在全新目录使用 Claude 时会询问是否信任该工作区，由负责人会话确认一次即可；成员复用同一目录，不会重复询问。当前 pane 是唯一负责人，成员都在当前 tab 中分屏，结束团队时保留主 pane。
+运行时进入 Herdr 的 pane，在要工作的目录中使用 Claude。无需项目初始化，不需要写项目 CLAUDE.md 或变更全局权限；由 weeco 启动的成员默认获得最大授权：Claude 使用 bypassPermissions，PI 以最大工具权限运行并加载 guard 扩展，Codex 使用不弹审批的 workspace-write 沙箱（开启 network_access 以访问 Herdr socket）。启动 Claude 成员前，weeco 会把成员工作目录（含 worktree 的主检出根）写入 `~/.claude.json` 的 `projects[].hasTrustDialogAccepted`，不再弹目录信任提示。当前 pane 是唯一负责人，成员都在当前 tab 中分屏，结束团队时保留主 pane。
 
 升级时，安装器自动归档并移除旧 manifest 拥有的技能、模板和同名 slash 命令，保留用户自定义内容；不会回滚历史信任设置。归档位置和处理结果以安装输出为准。
 
@@ -254,7 +254,7 @@ weeco status --run RUN_ID
 
 ## 遇到阻塞
 
-- 无法启动真实成员：先确认当前会话位于 Herdr pane，`herdr` 与 `claude` 可用，并检查启动命令的实际错误；如果报 `blocked during startup`，通常是新目录尚未确认 Claude 工作区信任，先在负责人会话里确认一次；不要用单会话角色模拟替代。
+- 无法启动真实成员：先确认当前会话位于 Herdr pane，`herdr` 与 `claude` 可用，并检查启动命令的实际错误；如果报 `blocked during startup`，weeco 已预置工作目录信任，检查 pane 里是否还有其他提示或模态框；不要用单会话角色模拟替代。
 - 成员没有报告：查看指定成员与 turn，核对 pane 和任务进展，不能靠 idle 推定完成。
 - `send` 被拒绝：如果提示成员仍在 `working`，先等当前报告或检查 pane，不能把旧 turn 的完成当成新 turn 已送达。
 - 报告轮次不符：成员按自己收到的明确 turn 报告；过期结果不能改成最新轮次补报。

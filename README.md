@@ -38,9 +38,9 @@ make install
 /weeco 把本地预览端口从5186改为5187，其他不动，验收能启动
 ```
 
-首次在全新目录使用 Claude 时，会先询问是否信任该工作区；由负责人会话确认一次即可。成员复用同一目录，不会重复询问。
+启动 Claude 成员前，weeco 会把成员工作目录（含 worktree 的主检出根）写入 `~/.claude.json` 的 `projects[].hasTrustDialogAccepted`，因此不会再弹目录信任提示；只写成员实际使用的路径，不改其他项目。首次在全新目录启动时的 bypass 责任确认也已在成员设置中跳过。
 
-无需项目初始化。安装不写项目 CLAUDE.md，也不修改全局信任或权限；由 weeco 启动的成员默认获得最大授权：Claude 使用 bypassPermissions，PI 以最大工具权限运行并加载 guard 扩展，Codex 使用不弹审批的 workspace-write 沙箱（开启网络以访问 Herdr socket）。测试目录之外的破坏性命令会被拦截。技能只在显式调用 `/weeco` 时启用，普通对话按原有方式进行。
+无需项目初始化。安装不写项目 CLAUDE.md，也不修改全局权限；启动 Claude 成员时只为其工作目录写入信任记录。由 weeco 启动的成员默认获得最大授权：Claude 使用 bypassPermissions，PI 以最大工具权限运行并加载 guard 扩展，Codex 使用不弹审批的 workspace-write 沙箱（开启网络以访问 Herdr socket）。测试目录之外的破坏性命令会被拦截。技能只在显式调用 `/weeco` 时启用，普通对话按原有方式进行。
 
 ## 如何协作
 

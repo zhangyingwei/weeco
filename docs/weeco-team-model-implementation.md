@@ -259,7 +259,7 @@ for candidate in candidates:
 |---|---|
 | agent 不在 PATH | 记录，试下一个候选 |
 | `agent_pane_busy`、`not an available shell` | 同一个候选内部重试，由现有 `herdr.AgentStart` 处理 |
-| `agent_not_ready`、`blocked during startup` | 停止，保留 pane，让人检查信任提示或模态框 |
+| `agent_not_ready`、`blocked during startup` | 停止，保留 pane，让人检查 pane 中的其他提示或模态框 |
 | 注入返回 `agent_blocked` | 停止，保留 pane |
 | 注入后等不到 `working` | 停止，保留 pane，不自动换模型 |
 | 其他 `agent start` 错误 | 关闭 pane，记录尝试，试下一个候选 |
@@ -421,7 +421,7 @@ weeco accept [ALIAS] --turn N --file NOTE [--run ID]
 - `--level` + `--agent codex`：只在 codex 候选中选；
 - 只有 `--agent codex`：旧行为，不套等级配置；
 - 第一个候选启动失败，第二个成功：`Attempts` 有两条，`Kind/Model` 为第二个；
-- 信任提示/`blocked during startup`：停止，不尝试下一个；
+- 启动阻塞/`blocked during startup`：停止，不尝试下一个；
 - 注入后等不到 `working`：停止，保留 pane；
 - 全部候选失败：成员 `failed`，`LastError` 汇总，无残留 pane；
 - `--replace` 且等级变化：允许替换，turn 递增；

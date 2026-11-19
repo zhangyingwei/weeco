@@ -8,10 +8,13 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"weeco/internal/sysutil"
 )
 
 type runtimeFixture struct {
 	home, root, state, task, result string
+	claudeDir                       string
 }
 
 type runtimeMemberSnapshot struct {
@@ -52,7 +55,7 @@ type runtimeSnapshot struct {
 
 func setupRuntime(t *testing.T) runtimeFixture {
 	t.Helper()
-	f := runtimeFixture{home: t.TempDir(), root: t.TempDir(), state: filepath.Join(t.TempDir(), "herdr.json")}
+	f := runtimeFixture{home: t.TempDir(), root: t.TempDir(), state: filepath.Join(t.TempDir(), "herdr.json"), claudeDir: t.TempDir()}
 	bin := t.TempDir()
 	_, source, _, _ := runtime.Caller(0)
 	fakeSource := filepath.Join(filepath.Dir(source), "testdata", "fakeherdr", "main.go")
@@ -67,6 +70,7 @@ func setupRuntime(t *testing.T) runtimeFixture {
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("WEECO_HOME", f.home)
+	t.Setenv("CLAUDE_CONFIG_DIR", f.claudeDir)
 	t.Setenv("FAKE_HERDR_STATE", f.state)
 	t.Setenv("HERDR_ENV", "1")
 	t.Setenv("HERDR_WORKSPACE_ID", "w1")
@@ -181,6 +185,40 @@ func TestRuntimeMemberGetsFullPermissions(t *testing.T) {
 		if strings.Contains(prompt, old) {
 			t.Fatalf("member prompt still describes the old narrow permission model: %s", prompt)
 		}
+	}
+	run := f.run(t)
+	guard, err := os.ReadFile(filepath.Join(f.home, "runs", run.ID, "members", "writer", "claude-guard-settings.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(guard), `"skipDangerousModePermissionPrompt": true`) {
+		t.Fatalf("guard settings do not skip the bypass confirmation modal: %s", guard)
+	}
+}
+
+func TestRuntimeStartAcceptsClaudeWorkspaceTrust(t *testing.T) {
+	f := setupRuntime(t)
+	if code := Run([]string{"start", "--name", "writer", "--role", "写作", "--task", f.task}); code != 0 {
+		t.Fatalf("start failed: %d", code)
+	}
+	dir, err := sysutil.AbsPath(f.root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(f.claudeDir, ".claude.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cfg struct {
+		Projects map[string]struct {
+			HasTrustDialogAccepted bool `json:"hasTrustDialogAccepted"`
+		} `json:"projects"`
+	}
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Projects[dir].HasTrustDialogAccepted {
+		t.Fatalf("Claude config does not trust member dir %q: %s", dir, data)
 	}
 }
 

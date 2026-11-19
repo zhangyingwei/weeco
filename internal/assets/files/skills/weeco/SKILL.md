@@ -48,7 +48,7 @@ weeco start --name ... --role ... \
 - 成员从 root pane 分屏，出现在 worktree workspace；负责人留在原 pane/workspace。
 - 成员上报和 `send lead` 使用 `status` 显示的 `team_workspace`；负责人命令仍使用原 workspace。
 - 负责人的构建、测试、验收命令在 worktree 路径执行；不得把原 checkout 的结果当作 worktree 验证。
-- Herdr 报信任问题 → 让用户确认，不自动使用 `--trust-repository`。
+- Herdr 报 Git 信任问题 → 让用户确认，不自动使用 `--trust-repository`。
 - 交付前在 worktree 路径执行 `git status --porcelain` 和 `git branch --show-current`；报告包含路径、分支、workspace ID、未提交文件。
 - 合并、保留或删除由用户决定；有未提交内容时不得自动 `--force`。用户决定删除 → 确认无未提交改动或用户明确接受丢失，执行 `herdr worktree remove --workspace <workspace-id>`。
 - `weeco close` 只关成员和 run，不删除 worktree；不得用 `workspace close` 代替清理。
@@ -108,8 +108,8 @@ weeco start --name ... --role ... \
 - UI 任务另加：UI 范围、是否做原型（用户确认）、原型路径、原型验收；无原型时写清布局、状态、交互、窄屏、深色模式的验收标准。
 - 项目文档、需求、设计、计划写在项目内或任务指定位置；`/tmp` 只放一次性脚本、测试数据、可丢弃中间文件；任务引用的共享材料必须在项目或 run 目录有副本。
 - 成员必须在 Herdr pane 中运行；缺 `herdr`/`claude` → 说明阻塞，不把单会话模拟成团队。
-- weeco 成员以最大权限启动（Claude bypassPermissions / PI 最大权限 / Codex workspace-write 且不弹审批）；负责人用任务文件写明可操作范围和交付边界，不修改全局信任或权限。
-- 全新目录 → 负责人先确认一次 Claude 工作区信任；成员复用同一目录。
+- weeco 成员以最大权限启动（Claude bypassPermissions / PI 最大权限 / Codex workspace-write 且不弹审批）；负责人用任务文件写明可操作范围和交付边界，不修改全局权限。
+- 启动 Claude 成员前，weeco 自动把成员工作目录和 worktree 主检出根写入 `~/.claude.json` 的信任记录；无需手动确认。
 
 ## 协作命令
 

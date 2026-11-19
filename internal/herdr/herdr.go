@@ -131,7 +131,7 @@ func AgentStart(name, paneID, kind string, timeoutMS int, nativeArgs []string) e
 			hint := "inspect the agent pane for a startup prompt and retry"
 			switch kind {
 			case "claude":
-				hint = "if this is a new directory, open Claude there once and accept the workspace trust prompt"
+				hint = "weeco accepts workspace trust for the run directory before starting; if Claude still shows a trust or responsibility prompt, inspect the pane and confirm it once"
 			case "codex":
 				hint = "inspect the Codex pane for an update, trust or login prompt, then retry"
 			case "pi":
