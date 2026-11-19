@@ -14,6 +14,9 @@ func TestModelArgs(t *testing.T) {
 		{"claude", "opus", "none", []string{"--model", "opus"}},
 		{"codex", "gpt-6", "medium", []string{"-m", "gpt-6", "-c", "model_reasoning_effort=medium"}},
 		{"pi", "deepseek", "low", []string{"--model", "deepseek", "--thinking", "low"}},
+		{"omp", "glm-5", "high", []string{"--model=glm-5", "--thinking=high"}},
+		{"omp", "glm-5", "none", []string{"--model=glm-5"}},
+		{"omp", "", "", nil},
 		{"claude", "", "", nil},
 	}
 	for _, tc := range cases {

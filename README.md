@@ -8,7 +8,7 @@ v0.12.2 在 v0.12.1 的 Windows 构建基础上，增加一键安装脚本。当
 
 ## 安装与使用
 
-从源码构建需要 Go 1.24+。运行团队需要可用的 `herdr`、已完成登录且可正常工作的 `claude`，以及 Herdr 中的负责人 pane。使用 `--agent codex` 或 `--agent pi` 时，还需要对应 CLI 已安装并登录。
+从源码构建需要 Go 1.24+。运行团队需要可用的 `herdr`、已完成登录且可正常工作的 `claude`，以及 Herdr 中的负责人 pane。使用 `--agent codex`、`--agent pi` 或 `--agent omp` 时，还需要对应 CLI 已安装并登录。
 
 从 Release 一键安装二进制和技能：
 
@@ -56,7 +56,7 @@ make install
 
 成员必须是真实 Herdr Agent/pane，不能用 Agent/Task 工具或会话里的角色扮演代替；成员也不能再创建新的 Herdr 成员。subagent 可用于成员本任务内的局部工作。共享目录中的写入先明确归属，避免相互覆盖。成员提交成果和核验依据后等待，负责人检查实际产物与原始来源，发现问题后让相应成员返工。
 
-成员默认使用 Claude，也可通过 `--agent codex` 或 `--agent pi` 启动对应 Agent。Claude 以 `bypassPermissions` 启动并挂 PreToolUse guard；Codex 以 `workspace-write` 沙箱和 `--ask-for-approval never` 启动，写入限定在工作区和 `~/.weeco/runs`（运行状态，用于加锁和上报），并开启 `network_access` 以便成员通过 Herdr socket 上报；PI 以最大权限启动并挂 `tool_call` guard。测试目录之外的破坏性命令会被拦截；Claude/PI 的 guard 是护栏，脚本混淆仍可能绕过，且只覆盖 Bash 命令，Claude/PI 的文件写入工具不受其检查；Codex 由原生沙箱限制写入范围。该设置只作用于 weeco 启动的成员，不修改你的当前会话或全局权限配置；负责人必须在任务文件中写明可操作范围和交付边界。
+成员默认使用 Claude，也可通过 `--agent codex`、`--agent pi` 或 `--agent omp` 启动对应 Agent。Claude 以 `bypassPermissions` 启动并挂 PreToolUse guard；Codex 以 `workspace-write` 沙箱和 `--ask-for-approval never` 启动，写入限定在工作区和 `~/.weeco/runs`（运行状态，用于加锁和上报），并开启 `network_access` 以便成员通过 Herdr socket 上报；PI 以最大权限启动并挂 `tool_call` guard；OMP 以 `--approval-mode yolo` 启动，复用 PI 的 `tool_call` guard 扩展。测试目录之外的破坏性命令会被拦截；Claude/PI/OMP 的 guard 是护栏，脚本混淆仍可能绕过，且只覆盖 Bash 命令，Claude/PI/OMP 的文件写入工具不受其检查；Codex 由原生沙箱限制写入范围。该设置只作用于 weeco 启动的成员，不修改你的当前会话或全局权限配置；负责人必须在任务文件中写明可操作范围和交付边界。
 
 独立检查需要独立读取原始要求和证据、尝试反例；换角色签字不能证明正确。检查深度随错误代价调整。idle、超时和“已完成”文字都不构成验收证据。
 

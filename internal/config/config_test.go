@@ -89,7 +89,7 @@ func TestRejectsUnknownAndInvalidFields(t *testing.T) {
 		{"unknown level", `{"levels":{"huge":[{"model":"x"}]}}`, `unknown level "huge"`},
 		{"unknown candidate", `{"levels":{"mid":[{"model":"x","strength":"high"}]}}`, `unknown field "strength"`},
 		{"empty model", `{"levels":{"mid":[{"agent":"claude"}]}}`, "model is required"},
-		{"bad agent", `{"levels":{"mid":[{"agent":"gemini","model":"x"}]}}`, "agent must be claude, codex or pi"},
+		{"bad agent", `{"levels":{"mid":[{"agent":"gemini","model":"x"}]}}`, "agent must be claude, codex, pi or omp"},
 		{"bad effort", `{"levels":{"mid":[{"model":"x","effort":"ultra"}]}}`, "effort must be low, medium, high or none"},
 		{"empty level", `{"levels":{"mid":[]}}`, "has no candidates"},
 		{"empty file", `   `, "config file is empty"},
@@ -104,6 +104,20 @@ func TestRejectsUnknownAndInvalidFields(t *testing.T) {
 				t.Fatalf("error = %v, want containing %q", err, tc.want)
 			}
 		})
+	}
+}
+
+func TestAcceptsOMPAgent(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	writeConfig(t, path, `{"levels":{"mid":[{"agent":"omp","model":"glm-5","effort":"high"}]}}`)
+	cfg, err := LoadFiles(path, "")
+	if err != nil {
+		t.Fatalf("omp candidate rejected: %v", err)
+	}
+	got := cfg.Levels["mid"][0]
+	if got.Agent != "omp" || got.Model != "glm-5" || got.Effort != "high" {
+		t.Fatalf("mid = %+v, want omp/glm-5/high", got)
 	}
 }
 

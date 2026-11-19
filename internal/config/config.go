@@ -29,7 +29,7 @@ var defaultEffort = map[string]string{
 	"temp":   "low",
 }
 
-var validAgents = map[string]bool{"claude": true, "codex": true, "pi": true}
+var validAgents = map[string]bool{"claude": true, "codex": true, "pi": true, "omp": true}
 var validEfforts = map[string]bool{"low": true, "medium": true, "high": true, "none": true}
 
 // Candidate is one model attempt for a level. Agent defaults to claude.
@@ -139,7 +139,7 @@ func validateFile(path string, fc *fileConfig) error {
 				candidate.Agent = "claude"
 			}
 			if !validAgents[candidate.Agent] {
-				return fmt.Errorf("%s: levels.%s[%d].agent must be claude, codex or pi", path, level, i)
+				return fmt.Errorf("%s: levels.%s[%d].agent must be claude, codex, pi or omp", path, level, i)
 			}
 			if strings.TrimSpace(candidate.Model) == "" {
 				return fmt.Errorf("%s: levels.%s[%d].model is required", path, level, i)
@@ -282,6 +282,6 @@ const Example = `{
     ],
     "mid":    [ { "model": "<模型名>", "effort": "medium" } ],
     "junior": [ { "model": "<模型名>", "effort": "low" } ],
-    "temp":   [ { "agent": "pi", "model": "<模型名>" } ]
+    "temp":   [ { "agent": "omp", "model": "<模型名>" } ]
   }
 }`

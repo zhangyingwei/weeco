@@ -136,6 +136,8 @@ func AgentStart(name, paneID, kind string, timeoutMS int, nativeArgs []string) e
 				hint = "inspect the Codex pane for an update, trust or login prompt, then retry"
 			case "pi":
 				hint = "inspect the PI pane for a trust or login prompt, then retry"
+			case "omp":
+				hint = "inspect the OMP pane for a trust, login or update prompt, then retry"
 			}
 			return fmt.Errorf("%w; %s", err, hint)
 		}

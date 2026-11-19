@@ -22,7 +22,7 @@ func cmdStart(args []string) int {
 		return fail(err)
 	}
 	if helpRequested(fs) {
-		fmt.Println("usage: weeco start --name ALIAS --role TEXT --task FILE [--level LEVEL] [--model MODEL] [--agent claude|codex|pi] [--dir PATH] [--team-pane PANE] [--replace] [--run ID]")
+		fmt.Println("usage: weeco start --name ALIAS --role TEXT --task FILE [--level LEVEL] [--model MODEL] [--agent claude|codex|pi|omp] [--dir PATH] [--team-pane PANE] [--replace] [--run ID]")
 		return 0
 	}
 	name, role := fs.value("name"), fs.value("role")
@@ -321,6 +321,12 @@ func tryStartMember(run *store.Run, m *store.Member, candidate config.Candidate,
 	}
 	nativeArgs, err := memberNativeArgs(candidate.Agent, run, promptPath, settingsPath, extensionPath, candidate.Model, candidate.Effort)
 	if err != nil {
+	case "omp":
+		// OMP shares PI's extension API, so the same tool_call guard applies.
+		extensionPath = filepath.Join(memberDir(run, m), "omp-guard-extension.js")
+		if err := writePIGuardExtension(extensionPath, exe, run.Dir); err != nil {
+			return true, err
+		}
 		return true, err
 	}
 	agentName, err := newAgentName()

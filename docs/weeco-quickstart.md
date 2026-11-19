@@ -24,7 +24,7 @@ irm https://github.com/zhangyingwei/weeco/releases/download/v0.12.2/install.ps1 
 make install
 ```
 
-已有二进制可执行 `weeco install` 安装技能。默认二进制为 `~/.local/bin/weeco`，技能和成员提示为 `~/.claude/skills/weeco/{SKILL.md,member-prompt.md}`。确认 `weeco`、`herdr` 和 `claude` 在 PATH 中，Claude 已能正常登录和工作；使用 `--agent codex` 或 `--agent pi` 时，还需要对应 CLI 已安装并登录。
+已有二进制可执行 `weeco install` 安装技能。默认二进制为 `~/.local/bin/weeco`，技能和成员提示为 `~/.claude/skills/weeco/{SKILL.md,member-prompt.md}`。确认 `weeco`、`herdr` 和 `claude` 在 PATH 中，Claude 已能正常登录和工作；使用 `--agent codex`、`--agent pi` 或 `--agent omp` 时，还需要对应 CLI 已安装并登录。
 
 运行时进入 Herdr 的 pane，在要工作的目录中使用 Claude。无需项目初始化，不需要写项目 CLAUDE.md 或变更全局信任、权限；由 weeco 启动的成员默认获得最大授权：Claude 使用 bypassPermissions，PI 以最大工具权限运行并加载 guard 扩展，Codex 使用不弹审批的 workspace-write 沙箱（开启 network_access 以访问 Herdr socket）。首次在全新目录使用 Claude 时会询问是否信任该工作区，由负责人会话确认一次即可；成员复用同一目录，不会重复询问。当前 pane 是唯一负责人，成员都在当前 tab 中分屏，结束团队时保留主 pane。
 
@@ -55,7 +55,7 @@ weeco config check
 }
 ```
 
-- `agent` 省略时默认 `claude`，只能是 `claude`、`codex`、`pi`；
+- `agent` 省略时默认 `claude`，只能是 `claude`、`codex`、`pi`、`omp`；
 - `effort` 省略时按等级取默认：资深 high、中级 medium、初级和临时 low；写 `none` 表示不传强度参数；
 - 候选按顺序失败转移，只在一轮工作开始前尝试下一个；
 - 未知字段会直接报错，不会静默忽略；

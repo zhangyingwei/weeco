@@ -129,7 +129,7 @@ weeco config check
 
 - 首次 `start` 自动建立 run；保存 run ID；需要定位时加 `--run ID`。
 - `--model` 只从等级候选中选；候选和顺序由 `~/.weeco/config.json` 或项目 `.weeco/config.json` 的 `levels` 决定；用 `weeco config check` 查看。
-- 成员默认 Claude；候选可指定 `agent` 为 `claude`/`codex`/`pi`；画师固定 Codex，不接受 `--level`、`--model` 或非 codex 的 `--agent`。
+- 成员默认 Claude；候选可指定 `agent` 为 `claude`/`codex`/`pi`/`omp`；画师固定 Codex，不接受 `--level`、`--model` 或非 codex 的 `--agent`。
 - `--replace` 只在明确替换同名成员时使用；先检查现状、保留必要成果。
 - `start` 未确认成员真正开始 → 保留 pane，检查后 `send` 重试或 `close --cancel`。
 - `send` 时成员仍在 `working` → CLI 会拒绝；先等报告或检查 pane。

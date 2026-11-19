@@ -15,10 +15,10 @@ func normalizeAgentKind(kind string) (string, error) {
 		return "claude", nil
 	}
 	switch kind {
-	case "claude", "codex", "pi":
+	case "claude", "codex", "pi", "omp":
 		return kind, nil
 	default:
-		return "", fmt.Errorf("--agent must be claude, codex or pi")
+		return "", fmt.Errorf("--agent must be claude, codex, pi or omp")
 	}
 }
 
@@ -56,8 +56,15 @@ func modelArgs(kind, model, effort string) ([]string, error) {
 		if effort != "" && effort != "none" {
 			args = append(args, "--thinking", effort)
 		}
+	case "omp":
+		if model != "" {
+			args = append(args, "--model="+model)
+		}
+		if effort != "" && effort != "none" {
+			args = append(args, "--thinking="+effort)
+		}
 	default:
-		return nil, fmt.Errorf("--agent must be claude, codex or pi")
+		return nil, fmt.Errorf("--agent must be claude, codex, pi or omp")
 	}
 	return args, nil
 }
@@ -88,8 +95,14 @@ func memberNativeArgs(kind string, run *store.Run, promptPath, settingsPath, ext
 		}
 	case "pi":
 		args = []string{"--approve", "--extension", extensionPath}
+	case "omp":
+		args = []string{
+			"--approval-mode=yolo",
+			"--add-dir=" + controlDir,
+			"--extension=" + extensionPath,
+		}
 	default:
-		return nil, fmt.Errorf("--agent must be claude, codex or pi")
+		return nil, fmt.Errorf("--agent must be claude, codex, pi or omp")
 	}
 	extra, err := modelArgs(kind, model, effort)
 	if err != nil {
@@ -104,6 +117,9 @@ type MemberCandidate = config.Candidate
 func writeClaudeGuardSettings(path, exe, runDir string) error {
 	command := shellQuote(exe) + " guard --run-dir " + shellQuote(runDir)
 	settings := map[string]any{
+		// Members start with bypassPermissions. Without this, Claude shows a
+		// one-time "accept responsibility" modal that blocks the pane.
+		"skipDangerousModePermissionPrompt": true,
 		"hooks": map[string]any{
 			"PreToolUse": []any{
 				map[string]any{
