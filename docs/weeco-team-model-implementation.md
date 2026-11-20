@@ -350,7 +350,7 @@ weeco accept [ALIAS] --turn N --result pass|fail --file NOTE [--run ID]
 7. 写入 `AcceptedTurn`、`AcceptedRev=Revision`、`Verdict`、`AcceptNote`、`AcceptedAt`。
 8. `fail` 时输出建议的 `send` 命令；后续同一轮出现新 revision 或新 turn，结论变为 `stale`。
 
-`accept` 不改变成员状态。`close` 要求当前报告有匹配的 `pass`；`fail` 通过 `send` 开返工轮，取消通过 `close --cancel` 绕过验收门禁。
+`accept` 不改变成员状态。`close` 要求当前报告有匹配的 `pass`；`fail` 通过 `send` 开返工轮，取消通过 `close --cancel` 绕过验收门禁。缺少 `verdict` 的验收记录按 `stale` 处理，正常 `close` 前需要重新执行 `accept --result pass`。
 
 ## 12. 文件清单
 
