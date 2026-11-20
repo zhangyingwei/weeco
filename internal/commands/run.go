@@ -221,6 +221,30 @@ func shellPath(s string) string {
 	return s
 }
 
+// acceptancePassed reports whether the member's latest report has a passing
+// verdict bound to its current turn and revision.
+func acceptancePassed(m *store.Member) bool {
+	return m.AcceptedTurn == m.Turn && m.AcceptedRev == m.Revision && m.Verdict == "pass"
+}
+
+// acceptanceState is the acceptance status shown by status.
+func acceptanceState(m *store.Member) string {
+	if m.AcceptedTurn == 0 {
+		if m.State == "submitted" {
+			return "pending"
+		}
+		return ""
+	}
+	if m.AcceptedTurn != m.Turn || m.AcceptedRev != m.Revision {
+		return "stale"
+	}
+	switch m.Verdict {
+	case "pass", "fail":
+		return m.Verdict
+	}
+	return "stale"
+}
+
 func verifyMember(run *store.Run, m *store.Member, agents []map[string]any) error {
 	a := herdr.ByPane(agents, m.PaneID)
 	if a == nil {

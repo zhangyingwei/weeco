@@ -13,6 +13,22 @@ import (
 	"weeco/internal/sysutil"
 )
 
+func runtimeErrorOutput(t *testing.T, args ...string) (int, string) {
+	t.Helper()
+	old := os.Stderr
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stderr = w
+	code := Run(args)
+	_ = w.Close()
+	os.Stderr = old
+	data, _ := io.ReadAll(r)
+	_ = r.Close()
+	return code, string(data)
+}
+
 func runtimeOutput(t *testing.T, args ...string) (int, string) {
 	t.Helper()
 	old := os.Stdout
@@ -50,6 +66,14 @@ func startWriter(t *testing.T, f runtimeFixture) {
 	t.Helper()
 	if Run([]string{"start", "--name", "writer", "--role", "写作", "--task", f.task}) != 0 {
 		t.Fatal("start failed")
+	}
+}
+
+func acceptPass(t *testing.T, f runtimeFixture, name, turn string) {
+	t.Helper()
+	f.asLead(t)
+	if code := Run([]string{"accept", name, "--turn", turn, "--result", "pass", "--file", f.result}); code != 0 {
+		t.Fatalf("accept %s turn %s failed", name, turn)
 	}
 }
 
@@ -206,6 +230,7 @@ func TestRuntimePartialCloseIsRetryable(t *testing.T) {
 		t.Fatal("report failed")
 	}
 	f.asLead(t)
+	acceptPass(t, f, "writer", "1")
 	t.Setenv("FAKE_HERDR_FAIL", "tab close")
 	if Run([]string{"close"}) == 0 {
 		t.Fatal("close failure hidden")

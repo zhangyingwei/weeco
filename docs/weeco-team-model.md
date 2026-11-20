@@ -300,24 +300,32 @@ weeco send lead --run <id> --file /abs/question.md
 
 用 `send` 给相应成员开返工轮。负责人也可以修复自己负责的部分，修改后重查受影响结果。
 
-### 验收记录
+### 验收结论与记录
 
-规划项 `weeco accept --turn N --file /abs/accept-note.txt` 记录：
+负责人必须给出结论：
+
+```bash
+weeco accept checker --turn N --result pass --file /abs/accept-note.txt
+weeco accept checker --turn N --result fail --file /abs/rework-note.txt
+```
+
+结论绑定当前 `turn + revision`，备注记录：
 
 - 核验了哪些产物；
 - 实际执行的命令或观察；
 - 未验证项；
 - 剩余问题。
 
-它只留痕，不改变流程，也不代替负责人判断。
+`pass` 允许正常关闭；`fail` 后用 `send` 开返工轮，返工说明沿用同一份备注。之后出现新报告或新 turn，原结论变为 `stale`，需要重新验收。
 
 ### 关闭
 
-- 交付边界内检查完成、必要返工完成后，说明交付位置、实际验证、未验证项和剩余问题，再 `close`。
+- 正常 `close` 要求成员当前报告有匹配的 `pass`；`pending`、`fail`、`stale` 都会被拒绝。
+- 交付边界内检查完成、验收 `pass`、必要返工完成后，说明交付位置、实际验证、未验证项和剩余问题，再 `close`。
 - 使用 worktree 时，`close` 前报告 worktree 路径、分支、workspace 和 `git status`，询问用户保留还是删除；用户未决定前不删除。删除用 `herdr worktree remove --workspace <id>`，有未提交内容时不得自动 `--force`。`close` 本身不删除 worktree。
 - `close` 不是验收通过的证明。
 - 仍待用户决定或仍需返工时，保留成员。
-- 取消使用 `close --cancel --reason "原因"`，不用取消结果冒充完成。
+- 取消使用 `close --cancel --reason "原因"`；取消绕过验收门禁，但不能冒充完成。
 
 ---
 
@@ -379,7 +387,7 @@ weeco config check
 weeco start --name checker --role "独立核验" --level senior --task /abs/check.md
 weeco start --name coder --role "实现后端" --level mid --model <中级模型名> --task /abs/backend.md
 weeco start --name illustrator --role artist --task /abs/poster-brief.md
-weeco accept --turn 2 --file /abs/accept-note.txt
+weeco accept checker --turn 2 --result pass --file /abs/accept-note.txt
 weeco status --json
 ```
 
@@ -405,4 +413,4 @@ temp:   1 candidate  → <临时模型名> (effort=low)
 7. 失败转移只发生在启动阶段；一轮内失败由负责人决定返工或换人。
 8. 成员不递归招人；负责人不把验收外包给作者。
 9. `idle`、超时、“已完成”文字都不构成验收证据。
-10. 关闭不是验收通过；取消结果不能冒充完成。
+10. 正常关闭必须有匹配当前报告的验收 `pass`；取消结果不能冒充完成。

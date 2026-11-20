@@ -56,6 +56,7 @@ func TestRuntimeCloseRemovesOwnedWorkspace(t *testing.T) {
 		t.Fatal("report failed")
 	}
 	f.asLead(t)
+	acceptPass(t, f, "writer", "1")
 	if Run([]string{"close"}) != 0 {
 		t.Fatal("close failed")
 	}

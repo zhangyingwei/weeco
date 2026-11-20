@@ -10,17 +10,21 @@ import (
 )
 
 func cmdAccept(args []string) int {
-	fs, err := runtimeFlags(args, []string{"turn", "file"}, nil, 1)
+	fs, err := runtimeFlags(args, []string{"turn", "file", "result"}, nil, 1)
 	if err != nil {
 		return fail(err)
 	}
 	if helpRequested(fs) {
-		fmt.Println("usage: weeco accept [ALIAS] --turn N --file NOTE [--run ID]")
+		fmt.Println("usage: weeco accept [ALIAS] --turn N --result pass|fail --file NOTE [--run ID]")
 		return 0
 	}
 	turn, err := strconv.Atoi(fs.value("turn"))
 	if err != nil || turn < 1 {
 		return fail(fmt.Errorf("--turn must be the positive turn number being accepted"))
+	}
+	result := fs.value("result")
+	if result != "pass" && result != "fail" {
+		return fail(fmt.Errorf("--result must be pass or fail"))
 	}
 	note, err := readText(fs.value("file"))
 	if err != nil {
@@ -64,12 +68,16 @@ func cmdAccept(args []string) int {
 		}
 		m.AcceptedTurn = turn
 		m.AcceptedRev = m.Revision
+		m.Verdict = result
 		m.AcceptNote = path
 		m.AcceptedAt = sysutil.NowISO()
 		if err := store.SaveRun(run); err != nil {
 			return err
 		}
-		fmt.Printf("member: %s\nturn: %d\nreport: %s\nnote: %s\n", m.Name, m.Turn, m.Report, path)
+		fmt.Printf("member: %s\nturn: %d\nresult: %s\nreport: %s\nnote: %s\n", m.Name, m.Turn, result, m.Report, path)
+		if result == "fail" {
+			fmt.Printf("next: send the rework with weeco send %s --file %s\n", m.Name, path)
+		}
 		return nil
 	})
 	if err != nil {

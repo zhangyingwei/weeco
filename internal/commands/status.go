@@ -12,7 +12,8 @@ import (
 
 type runtimeMemberView struct {
 	*store.Member
-	Live string `json:"live"`
+	Live   string `json:"live"`
+	Accept string `json:"accept,omitempty"`
 }
 
 type runtimeStatus struct {
@@ -86,7 +87,7 @@ func cmdStatus(args []string) int {
 						live = "replaced"
 					}
 				}
-				out.Members = append(out.Members, runtimeMemberView{Member: m, Live: live})
+				out.Members = append(out.Members, runtimeMemberView{Member: m, Live: live, Accept: acceptanceState(m)})
 				attention := live == "missing" || live == "replaced" || live == "blocked"
 				if m.Revision > m.Seen || (attention && live != m.SeenLive) {
 					ready = true
@@ -129,17 +130,18 @@ func cmdStatus(args []string) int {
 			} else {
 				fmt.Printf("run: %s\nlead: %s\nteam_pane: %s\nteam_workspace: %s\ndir: %s\nreason: %s\n", out.Run, out.LeadPane, displayDash(out.TeamPane), displayDash(out.TeamWorkspace), out.Dir, out.Reason)
 				for _, v := range out.Members {
-					fmt.Printf("%-16s state=%-10s live=%-10s turn=%d level=%s model=%s role=%s tab=%s attempts=%d\n",
-						v.Name, v.State, v.Live, v.Turn, displayDash(v.Level), displayDash(v.Model), displayDash(v.Role), displayDash(v.TabID), len(v.Attempts))
+					fmt.Printf("%-16s state=%-10s live=%-10s turn=%d level=%s model=%s role=%s tab=%s accept=%s attempts=%d\n",
+						v.Name, v.State, v.Live, v.Turn, displayDash(v.Level), displayDash(v.Model), displayDash(v.Role), displayDash(v.TabID), displayDash(v.Accept), len(v.Attempts))
 					if v.Report != "" {
 						fmt.Printf("  report: %s\n", v.Report)
 					}
-					if v.AcceptedTurn > 0 {
-						if v.AcceptedRev != v.Revision || v.AcceptedTurn != v.Turn || v.State != "submitted" {
-							fmt.Printf("  accepted: stale (turn %d, report or turn changed)\n", v.AcceptedTurn)
-						} else {
-							fmt.Printf("  accepted: turn %d (%s) note=%s\n", v.AcceptedTurn, v.AcceptedAt, v.AcceptNote)
-						}
+					switch v.Accept {
+					case "pending":
+						fmt.Printf("  accepted: pending\n")
+					case "stale":
+						fmt.Printf("  accepted: stale (turn %d, report or turn changed)\n", v.AcceptedTurn)
+					case "pass", "fail":
+						fmt.Printf("  accepted: %s (turn %d, %s) note=%s\n", v.Accept, v.AcceptedTurn, v.AcceptedAt, v.AcceptNote)
 					}
 					if v.LastError != "" {
 						fmt.Printf("  warning: %s\n", v.LastError)

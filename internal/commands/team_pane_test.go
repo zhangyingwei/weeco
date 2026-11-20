@@ -115,6 +115,7 @@ func TestRuntimeStartTeamPaneUsesWorktreeWorkspace(t *testing.T) {
 		t.Fatal("member in worktree workspace could not report second turn")
 	}
 	f.asLead(t)
+	acceptPass(t, f, "writer", "2")
 	if Run([]string{"close"}) != 0 {
 		t.Fatal("close failed for team in worktree workspace")
 	}

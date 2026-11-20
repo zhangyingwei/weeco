@@ -144,7 +144,7 @@ HERDR_PANE_ID 和 HERDR_WORKSPACE_ID 存在
 入口：`internal/commands/close.go`。
 
 1. 必须是负责人调用。
-2. 普通关闭要求成员处于 `submitted` 或 `closed`；`--cancel --reason` 允许关闭其他状态。
+2. 普通关闭要求成员处于 `submitted` 或 `closed`，并且当前报告有匹配的验收 `pass`；`pending`、`fail`、`stale` 拒绝。`--cancel --reason` 允许关闭其他状态并绕过验收门禁。
 3. 逐个成员处理：
    - 拒绝关闭负责人 pane。
    - 如果成员 pane 上有 live agent，核对 session 或 agent 名，身份不一致则失败。
@@ -198,7 +198,7 @@ type Member struct {
     Report      string
     Revision    int
     Attempts    []Attempt
-    // 验收字段：AcceptedTurn / AcceptedRev / AcceptNote / AcceptedAt
+    // 验收字段：AcceptedTurn / AcceptedRev / Verdict / AcceptNote / AcceptedAt
 }
 ```
 
@@ -206,7 +206,7 @@ type Member struct {
 
 - `Level / Model / Effort`：普通成员记录实际候选；画师三项为空。
 - `Attempts`：每次候选尝试的 agent、model、effort、错误和时间。
-- `Revision` 与 `AcceptedRev` 不一致时，`status` 标记验收过期。
+- `Verdict` 为 `pass` 或 `fail`，绑定 `AcceptedTurn` 和 `AcceptedRev`；与当前 turn/revision 不一致时验收过期。
 - 缺少 `TabID` 的成员使用 pane 关闭路径。
 
 ## 7. `status`
@@ -220,14 +220,20 @@ team_pane: -
 team_workspace: w2
 dir: /path/to/run-dir
 reason: snapshot
-writer  state=submitted live=idle turn=2 level=mid model=... role=写作 tab=w2:t1 attempts=1
+writer  state=submitted live=idle turn=2 level=mid model=... role=写作 tab=w2:t1 accept=pending attempts=1
+```
+
+验收后增加一行：
+
+```text
+  accepted: pass (turn 2, 2026-11-21T10:00:00+08:00) note=/path/to/note
 ```
 
 `--json` 直接输出 `runtimeStatus`：
 
 - `team_pane`、`team_tab`、`team_workspace`、`team_workspace_owned`；
-- `members[]` 嵌入 `store.Member`，包含 `tab_id` 和 `workspace_id`；
-- `live` 为 `missing / replaced / blocked / idle / working / ...`。
+- `members[]` 嵌入 `store.Member`，包含 `tab_id`、`workspace_id` 和 `verdict`；
+- `accept` 为 `pending / pass / fail / stale`，`live` 为 `missing / replaced / blocked / idle / working / ...`。
 
 `status --wait` 等待新报告、阻塞或身份异常；idle 和超时不代表完成。
 
@@ -330,7 +336,7 @@ weeco config check
 ## 11. `accept`
 
 ```bash
-weeco accept [ALIAS] --turn N --file NOTE [--run ID]
+weeco accept [ALIAS] --turn N --result pass|fail --file NOTE [--run ID]
 ```
 
 流程：
@@ -338,12 +344,13 @@ weeco accept [ALIAS] --turn N --file NOTE [--run ID]
 1. 必须是负责人调用。
 2. 成员必须存在。
 3. `--turn` 必须等于成员当前 `Turn`。
-4. 成员状态必须是 `submitted`；`blocked` 不接受。
-5. 备注写入 `members/<name>/accepts/turn-N-accept.md`。
-6. 写入 `AcceptedTurn`、`AcceptedRev=Revision`、`AcceptNote`、`AcceptedAt`。
-7. 后续同一轮出现新 revision 时，`status` 标记验收过期。
+4. `--result` 必填，只允许 `pass` 或 `fail`。
+5. 成员状态必须是 `submitted`；`blocked` 不接受。
+6. 备注写入 `members/<name>/accepts/turn-N-accept.md`。
+7. 写入 `AcceptedTurn`、`AcceptedRev=Revision`、`Verdict`、`AcceptNote`、`AcceptedAt`。
+8. `fail` 时输出建议的 `send` 命令；后续同一轮出现新 revision 或新 turn，结论变为 `stale`。
 
-`accept` 不改变成员状态，不替代 `close`。
+`accept` 不改变成员状态。`close` 要求当前报告有匹配的 `pass`；`fail` 通过 `send` 开返工轮，取消通过 `close --cancel` 绕过验收门禁。
 
 ## 12. 文件清单
 
@@ -357,7 +364,7 @@ weeco accept [ALIAS] --turn N --file NOTE [--run ID]
 | `internal/commands/status.go` | 状态与等待 |
 | `internal/commands/send.go` | 新 turn 派发 |
 | `internal/commands/report.go` | 成员报告 |
-| `internal/commands/accept.go` | 验收留痕 |
+| `internal/commands/accept.go` | 验收结论与备注 |
 | `internal/commands/agentstart.go` | guard 配置和 native 参数 |
 | `internal/config/config.go` | 等级候选加载、合并、校验、解析 |
 | `internal/commands/testdata/fakeherdr/main.go` | 测试用 Herdr 状态机：workspace、tab、pane、agent |
@@ -388,6 +395,7 @@ make build
 - `close` 关闭成员 tab，并在最后一个 tab 后移除 owned workspace；
 - `--team-pane` 模式在借用 workspace 中创建成员 tab，关闭后 workspace 和 root tab 保留；
 - `--replace` 在成员原 tab 已关闭后创建新 tab，turn 递增；
+- 未验收、`fail`、`stale` 都拒绝正常 `close`；匹配当前报告的 `pass` 才允许关闭；`--cancel` 绕过门禁；
 - 首次启动设置失败会清理刚创建的 workspace；
 - 第二个成员 tab 创建失败不影响已有成员和 workspace；
 - 没有 `TabID` 的成员仍可按 pane 关闭，负责人 pane 不受影响。

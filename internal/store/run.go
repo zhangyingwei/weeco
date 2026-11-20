@@ -53,6 +53,7 @@ type Member struct {
 	Attempts     []Attempt `json:"attempts,omitempty"`
 	AcceptedTurn int       `json:"accepted_turn,omitempty"`
 	AcceptedRev  int       `json:"accepted_revision,omitempty"`
+	Verdict      string    `json:"verdict,omitempty"`
 	AcceptNote   string    `json:"accept_note,omitempty"`
 	AcceptedAt   string    `json:"accepted_at,omitempty"`
 }

@@ -202,20 +202,39 @@ func TestRuntimeAcceptFlow(t *testing.T) {
 	if code := Run([]string{"report", "--turn", "1", "--file", f.result}); code != 0 {
 		t.Fatal("report failed")
 	}
+	f.asLead(t)
+	code, output := runtimeOutput(t, "status")
+	if code != 0 || !strings.Contains(output, "accept=pending") || !strings.Contains(output, "accepted: pending") {
+		t.Fatalf("pending acceptance not shown: %d %s", code, output)
+	}
+	if code := Run([]string{"accept", "writer", "--turn", "1", "--file", f.result}); code == 0 {
+		t.Fatal("accept without a result succeeded")
+	}
+	if code := Run([]string{"accept", "writer", "--turn", "1", "--result", "maybe", "--file", f.result}); code == 0 {
+		t.Fatal("accept with an invalid result succeeded")
+	}
 	f.asMember(t, "writer")
-	if code := Run([]string{"accept", "--turn", "1", "--file", f.result}); code == 0 {
+	if code := Run([]string{"accept", "--turn", "1", "--result", "pass", "--file", f.result}); code == 0 {
 		t.Fatal("member accepted its own work")
 	}
 	f.asLead(t)
-	if code := Run([]string{"accept", "writer", "--turn", "1", "--file", f.result}); code != 0 {
+	if code := Run([]string{"accept", "writer", "--turn", "1", "--result", "pass", "--file", f.result}); code != 0 {
 		t.Fatal("lead accept failed")
 	}
 	m := f.run(t).Members["writer"]
-	if m.AcceptedTurn != 1 || m.AcceptedRev != 1 || m.AcceptNote == "" {
+	if m.AcceptedTurn != 1 || m.AcceptedRev != 1 || m.Verdict != "pass" || m.AcceptNote == "" {
 		t.Fatalf("accept fields = %+v", m)
 	}
 	if _, err := os.Stat(m.AcceptNote); err != nil {
 		t.Fatalf("accept note missing: %v", err)
+	}
+	code, output = runtimeOutput(t, "status")
+	if code != 0 || !strings.Contains(output, "accept=pass") || !strings.Contains(output, "accepted: pass") {
+		t.Fatalf("passing acceptance not shown: %d %s", code, output)
+	}
+	code, output = runtimeOutput(t, "status", "--json")
+	if code != 0 || !strings.Contains(output, `"accept": "pass"`) || !strings.Contains(output, `"verdict": "pass"`) {
+		t.Fatalf("acceptance not exposed in JSON: %d %s", code, output)
 	}
 
 	f.asMember(t, "writer")
@@ -223,11 +242,14 @@ func TestRuntimeAcceptFlow(t *testing.T) {
 		t.Fatal("second report failed")
 	}
 	f.asLead(t)
-	code, output := runtimeOutput(t, "status")
+	code, output = runtimeOutput(t, "status")
 	if code != 0 || !strings.Contains(output, "accepted: stale") {
 		t.Fatalf("stale acceptance not shown after a new revision: %d %s", code, output)
 	}
-	if code := Run([]string{"accept", "writer", "--turn", "1", "--file", f.result}); code != 0 {
+	if code := Run([]string{"close"}); code == 0 {
+		t.Fatal("stale acceptance allowed close")
+	}
+	if code := Run([]string{"accept", "writer", "--turn", "1", "--result", "pass", "--file", f.result}); code != 0 {
 		t.Fatal("re-accept failed")
 	}
 	if code := Run([]string{"send", "writer", "--file", f.task}); code != 0 {
@@ -236,6 +258,58 @@ func TestRuntimeAcceptFlow(t *testing.T) {
 	code, output = runtimeOutput(t, "status")
 	if code != 0 || !strings.Contains(output, "accepted: stale") {
 		t.Fatalf("stale acceptance not shown after a new turn: %d %s", code, output)
+	}
+}
+
+func TestRuntimeCloseRequiresPassedAcceptance(t *testing.T) {
+	f := setupRuntime(t)
+	startWriter(t, f)
+	f.asMember(t, "writer")
+	if Run([]string{"report", "--turn", "1", "--file", f.result}) != 0 {
+		t.Fatal("report failed")
+	}
+	f.asLead(t)
+	if code, output := runtimeErrorOutput(t, "close"); code == 0 || !strings.Contains(output, "has not passed acceptance") {
+		t.Fatalf("unaccepted report allowed close: %d %s", code, output)
+	}
+	if code := Run([]string{"accept", "writer", "--turn", "1", "--result", "fail", "--file", f.result}); code != 0 {
+		t.Fatal("fail verdict not recorded")
+	}
+	if code, output := runtimeErrorOutput(t, "close"); code == 0 || !strings.Contains(output, "was rejected") {
+		t.Fatalf("rejected report allowed close: %d %s", code, output)
+	}
+	if code := Run([]string{"send", "writer", "--file", f.task}); code != 0 {
+		t.Fatal("rework send failed")
+	}
+	f.asMember(t, "writer")
+	if Run([]string{"report", "--turn", "2", "--file", f.result}) != 0 {
+		t.Fatal("rework report failed")
+	}
+	f.asLead(t)
+	if code, output := runtimeErrorOutput(t, "close"); code == 0 || !strings.Contains(output, "has not passed acceptance") {
+		t.Fatalf("stale failed verdict allowed close: %d %s", code, output)
+	}
+	if code := Run([]string{"accept", "writer", "--turn", "2", "--result", "pass", "--file", f.result}); code != 0 {
+		t.Fatal("pass verdict not recorded")
+	}
+	if Run([]string{"close"}) != 0 {
+		t.Fatal("close failed after a passing acceptance")
+	}
+	if !f.run(t).Closed {
+		t.Fatal("run still open after a passing acceptance")
+	}
+}
+
+func TestRuntimeCancelBypassesAcceptance(t *testing.T) {
+	f := setupRuntime(t)
+	startWriter(t, f)
+	f.asMember(t, "writer")
+	if Run([]string{"report", "--turn", "1", "--file", f.result}) != 0 {
+		t.Fatal("report failed")
+	}
+	f.asLead(t)
+	if Run([]string{"close", "--cancel", "--reason", "取消验收"}) != 0 {
+		t.Fatal("cancel did not bypass acceptance")
 	}
 }
 

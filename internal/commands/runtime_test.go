@@ -41,6 +41,7 @@ type runtimeMemberSnapshot struct {
 	} `json:"attempts"`
 	AcceptedTurn int    `json:"accepted_turn"`
 	AcceptedRev  int    `json:"accepted_revision"`
+	Verdict      string `json:"verdict"`
 	AcceptNote   string `json:"accept_note"`
 }
 
@@ -269,6 +270,7 @@ func TestRuntimeLifecycle(t *testing.T) {
 	if code := Run([]string{"status", "--json"}); code != 0 {
 		t.Fatal("status failed")
 	}
+	acceptPass(t, f, "writer", "2")
 	if code := Run([]string{"close"}); code != 0 {
 		t.Fatal("close failed")
 	}

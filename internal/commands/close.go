@@ -45,6 +45,12 @@ func cmdClose(args []string) int {
 			if m.State != "closed" && !fs.bool("cancel") && m.State != "submitted" {
 				return fmt.Errorf("member %s is %s; verify a submission or cancel with a reason", name, m.State)
 			}
+			if !fs.bool("cancel") && m.State == "submitted" && !acceptancePassed(m) {
+				if m.Verdict == "fail" && m.AcceptedTurn == m.Turn && m.AcceptedRev == m.Revision {
+					return fmt.Errorf("member %s was rejected; send rework or close --cancel", name)
+				}
+				return fmt.Errorf("member %s has not passed acceptance; run: weeco accept %s --turn %d --result pass --file <note>", name, name, m.Turn)
+			}
 		}
 		agents, err := herdr.List("agent", "")
 		if err != nil {

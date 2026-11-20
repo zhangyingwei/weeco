@@ -139,7 +139,7 @@ PROJECT=/absolute/path/to/project
 weeco start --name ui-proto --role "原型设计" --level senior --task "$PROJECT/.weeco/tasks/prototype-task.md"
 ```
 
-原型任务只写 `docs/prototypes/<feature>/`，产出可打开的静态原型、关键状态和交互、`notes.md`；不写生产 UI，不接真实后端。复杂流程用 `--level senior`，简单组件可用 `mid`。负责人检查后，由用户确认视觉方向、布局和关键交互，再用 `weeco accept` 记录；UI 实现任务引用原型路径。后端等非 UI 工作可以并行，UI 实现等待原型确认。
+原型任务只写 `docs/prototypes/<feature>/`，产出可打开的静态原型、关键状态和交互、`notes.md`；不写生产 UI，不接真实后端。复杂流程用 `--level senior`，简单组件可用 `mid`。负责人检查后，由用户确认视觉方向、布局和关键交互，再用 `weeco accept <成员> --turn N --result pass --file <note>` 记录；UI 实现任务引用原型路径。后端等非 UI 工作可以并行，UI 实现等待原型确认。
 
 用户说不需要原型时，把决定写进任务；任务仍要写清布局、状态、交互、窄屏和深色模式等 UI 验收标准。
 
@@ -216,17 +216,26 @@ weeco status checker --wait --timeout 60
 
 按实际任务选择证据：端口修改检查当前进程与新端口能否启动；通知检查事实、字数和缺项；迁移方案检查步骤、对账、回滚、失败重跑和未验证依赖。方案完整不能证明生产迁移已执行，模拟检查也不能冒称真实用户反馈。独立检查从原始目标和来源重新核验，并尝试找反例。
 
-检查完成可记录验收内容：
+检查完成后必须给出验收结论：
 
 ```bash
-weeco accept checker --turn 1 --file "$PROJECT/.reports/notice-accept.md"
+weeco accept checker --turn 1 --result pass --file "$PROJECT/.reports/notice-accept.md"
 ```
 
-备注里写核验了哪些产物、实际执行的命令或观察、未验证项和剩余问题。`accept` 只留痕，不改变 `close` 条件；同一轮之后成员又提交了新 revision，`status` 会显示验收已过期，需要重新核验。
+备注里写核验了哪些产物、实际执行的命令或观察、未验证项和剩余问题。`pass` 绑定当前 turn 和报告 revision；之后成员又提交了新 revision 或新 turn，`status` 会显示 `accepted: stale`，`close` 会拒绝，需要重新核验。
+
+不通过时记录失败结论，再用 `send` 打回：
+
+```bash
+weeco accept checker --turn 1 --result fail --file "$PROJECT/.reports/notice-rework.md"
+weeco send checker --file "$PROJECT/.reports/notice-rework.md"
+```
+
+`fail` 和 `pending`、`stale` 一样不能正常 `close`；只有匹配当前报告的 `pass` 才允许关闭。取消使用 `weeco close --cancel --reason "原因"`。
 
 ## 交付与关闭
 
-交付边界内检查完成后，负责人说明成果位置、实际核验、未验证项和剩余问题，再关闭。如果本轮使用了 worktree，先按“结束时清理 worktree”报告状态并确认保留或删除；`weeco close` 本身不删除 worktree。
+交付边界内检查完成且验收为 `pass` 后，负责人说明成果位置、实际核验、未验证项和剩余问题，再关闭。如果本轮使用了 worktree，先按“结束时清理 worktree”报告状态并确认保留或删除；`weeco close` 本身不删除 worktree。
 
 ```bash
 weeco close checker

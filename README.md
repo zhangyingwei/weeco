@@ -58,7 +58,7 @@ make install
 
 成员默认使用 Claude，也可通过 `--agent codex`、`--agent pi` 或 `--agent omp` 启动对应 Agent。Claude 以 `bypassPermissions` 启动并挂 PreToolUse guard；Codex 以 `workspace-write` 沙箱和 `--ask-for-approval never` 启动，写入限定在工作区和 `~/.weeco/runs`（运行状态，用于加锁和上报），并开启 `network_access` 以便成员通过 Herdr socket 上报；PI 以最大权限启动并挂 `tool_call` guard；OMP 以 `--approval-mode yolo` 启动，复用 PI 的 `tool_call` guard 扩展。测试目录之外的破坏性命令会被拦截；Claude/PI/OMP 的 guard 是护栏，脚本混淆仍可能绕过，且只覆盖 Bash 命令，Claude/PI/OMP 的文件写入工具不受其检查；Codex 由原生沙箱限制写入范围。该设置只作用于 weeco 启动的成员，不修改你的当前会话或全局权限配置；负责人必须在任务文件中写明可操作范围和交付边界。
 
-独立检查需要独立读取原始要求和证据、尝试反例；换角色签字不能证明正确。检查深度随错误代价调整。idle、超时和“已完成”文字都不构成验收证据。
+独立检查需要独立读取原始要求和证据、尝试反例；换角色签字不能证明正确。检查深度随错误代价调整。idle、超时和“已完成”文字都不构成验收证据。验收必须给出 `pass` 或 `fail` 结论；`pass` 才允许正常关闭成员。
 
 ## 命令
 
@@ -68,13 +68,13 @@ make install
 | `status [ALIAS] [--wait --timeout SEC] [--json]` | 查询成员与当前工作，按需等待 |
 | `send <ALIAS\|lead> --file FILE` | 给成员开启新 turn，或向负责人通信 |
 | `report --turn N --file FILE [--blocked]` | 成员提交指定轮次的成果或阻塞 |
-| `accept [ALIAS] --turn N --file NOTE` | 负责人记录验收内容；不替代 `close` |
+| `accept [ALIAS] --turn N --result pass\|fail --file NOTE` | 负责人记录验收结论和依据；`pass` 后才允许正常 `close` |
 | `close [ALIAS] [--cancel --reason TEXT]` | 关闭指定成员或当前团队；取消需说明原因；不删除 worktree |
 | `config init [--project] [--force]` / `config check` | 生成最小模型配置 / 查看实际生效的等级与候选 |
 
 以上命令均以 `weeco` 为前缀，支持 `--run ID` 显式定位。成员身份、任务、控制目录、当前 turn 和报告命令由 CLI 注入。报告归属成员 pane，必须携带收到的 turn，不能自动取最新轮次把旧结果冒充新结果。
 
-`send lead` 只通信，送达不等于取得决定或授权。负责人在交付边界内检查并完成必要返工后再关闭成员；待用户决定或仍需返工时保留相关成员 tab。`close` 保留负责人主 pane，关闭动作本身不证明成果通过；它也不会删除 worktree，worktree 的保留或删除要单独确认。`accept` 只记录负责人核验了哪些产物、实际执行和未验证项，不改变 `close` 的条件；同一轮之后又有新报告时，验收标记为过期，需要重新核验。`start` 会确认成员真正开始任务；未确认时保留成员 tab 并报错，负责人检查后用 `send` 重试或 `close --cancel` 结束。`send` 会等待成员真正开始新 turn；如果成员仍在 `working`，命令会拒绝，负责人应先等当前报告或检查成员 tab；如果 tab 停在确认提示或模态向导上，命令返回未确认错误，负责人需检查后重试。
+`send lead` 只通信，送达不等于取得决定或授权。负责人在交付边界内检查实际交付物后必须给出验收结论；待用户决定或仍需返工时保留相关成员 tab。`close` 保留负责人主 pane，关闭动作本身不证明成果通过；它也不会删除 worktree，worktree 的保留或删除要单独确认。`accept <alias> --turn N --result pass|fail --file NOTE` 记录结论和依据；`pass` 绑定当前 turn 和报告 revision，之后有新报告或新 turn 会过期，`fail` 后用 `send` 打回返工。正常 `close` 要求当前报告有匹配的 `pass`，`pending`、`fail`、`stale` 都会被拒绝；`close --cancel` 用于取消。`start` 会确认成员真正开始任务；未确认时保留成员 tab 并报错，负责人检查后用 `send` 重试或 `close --cancel` 结束。`send` 会等待成员真正开始新 turn；如果成员仍在 `working`，命令会拒绝，负责人应先等当前报告或检查成员 tab；如果 tab 停在确认提示或模态向导上，命令返回未确认错误，负责人需检查后重试。
 
 ## 运行记录与边界
 

@@ -88,7 +88,7 @@ weeco start --name ... --role ... \
 - 开工说明写清：UI 范围、是否建议原型及理由、原型覆盖的页面/状态/交互。
 - 问一次“是否需要先做原型”，等待回答；同一 run 内不重复问，范围变化时重新确认。
 - 需要原型 → 先派原型成员，只改 `docs/prototypes/<feature>/`，产出静态原型、关键状态和交互、`notes.md`；复杂流程用 `--level senior`，简单组件用 `mid`。原型不得写生产 UI、接真实后端或把 mock 当实现。
-- 原型完成 → 负责人先打开检查，再由用户确认视觉方向、布局、关键交互；用 `accept <原型成员> --turn N --file .reports/prototype-accept.md` 记录确认范围、未定项和约束。
+- 原型完成 → 负责人先打开检查，再由用户确认视觉方向、布局、关键交互；用 `accept <原型成员> --turn N --result pass --file .reports/prototype-accept.md` 记录确认范围、未定项和约束。
 - 不需要原型 → 记录决定；任务写明 UI 验收标准，不得跳过 UI 验收。
 - 用户让负责人决定 → 新页面、新流程、跨模块或高风险 UI 默认做原型；纯样式微调、边界清晰的小改动可说明理由后跳过，并写入任务。
 - 非 UI 工作可并行；UI 实现等原型确认。原型被否 → 只返工原型，不启动 UI 实现。
@@ -121,7 +121,7 @@ weeco start --name ui-proto --role "原型设计" --level senior --task /absolut
 weeco status
 weeco status checker --wait --timeout 60
 weeco send checker --file /absolute/path/follow-up.md
-weeco accept checker --turn 1 --file /absolute/path/accept-note.md
+weeco accept checker --turn 1 --result pass --file /absolute/path/accept-note.md
 weeco close checker
 weeco close
 weeco config check
@@ -146,9 +146,12 @@ weeco config check
 - 有 P0/P1/P2 → 按确认上限逐级核对，报告每级状态；未全部完成不算交付完成。
 - 有独立检查价值 → 让检查者从原始要求和证据出发找反例；换角色签字或重复作者结论不算独立。
 - 发现问题 → 写清现象、期望、依据、修复边界，用 `send` 开返工轮；负责人可修自己负责部分，修改后重查受影响结果。
-- 需要留痕 → `accept <alias> --turn N --file NOTE` 记录核验产物、实际执行、未验证项；只留痕，不改变 `close` 条件；同一轮后有新报告 → 验收过期，重新核验。
+- 验收必须给出结论：`accept <alias> --turn N --result pass|fail --file NOTE`。NOTE 记录核验产物、实际执行、未验证项和剩余问题。
+- `pass` 绑定当前 turn 和 report revision；之后又有新报告或新 turn → 验收过期，`close` 会拒绝，需重新核验。
+- `fail` 后用 `send <alias> --file NOTE` 开返工轮；返工说明写清现象、期望、依据和修复边界。
+- 正常 `close` 要求成员当前报告有匹配的 `pass`；`pending`、`fail`、`stale` 都不能关闭。取消走 `close --cancel`。
 - 阻塞需要用户决定 → 只暂停依赖该决定的工作，保留相关成员；通信、超时、未反对都不是授权。
-- 交付边界内完成检查与返工后，说明交付位置、实际验证、未验证项、剩余问题，再 `close [ALIAS]` 或 `close`；关闭保留主 pane；仍待决定或返工时不关闭。
+- 交付边界内完成检查、验收和返工后，说明交付位置、实际验证、未验证项、剩余问题，再 `close [ALIAS]` 或 `close`；关闭保留主 pane；仍待决定或返工时不关闭。
 - 用了 worktree → `close` 前报告路径、分支、workspace、`git status`，问用户保留还是删除；未决定不删除，不用 `workspace close` 代替。
 - 取消 → `close [ALIAS] --cancel --reason "原因"`；关闭不是验收证据，不把取消或未验证说成完成。
 - 运行记录在 `~/.weeco/runs/<id>/run.json` 及任务、报告快照；不手改记录；快照不能证明成果正确。
