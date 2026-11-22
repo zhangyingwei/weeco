@@ -146,7 +146,7 @@
 }
 ```
 
-- `model` 必填；`agent` 省略时默认 `claude`；`effort` 省略时按等级取内置默认（资深 high、中级 medium、初级和临时 low）。
+- `model` 可省略；省略或空字符串表示使用该 agent 的 CLI 默认模型。例如 `{ "agent": "omp", "effort": "high" }` 会使用 OMP 自己的默认模型；显式指定 OMP 模型时通常要带 provider 前缀，如 `magpie/deepseek/deepseek-flash`。`agent` 省略时默认 `claude`；`effort` 省略时按等级取内置默认（资深 high、中级 medium、初级和临时 low）。
 - 一个等级可以写单个对象或数组；数组顺序就是失败转移顺序。
 - 策略、重试次数、冷却时间、超时都用内置默认，不出现在用户配置里；需要临时覆盖时用命令行参数。
 - 只在一轮工作开始前的启动失败时转移：命令不存在、模型不可用、未登录/欠费、进程立即退出。
@@ -371,8 +371,8 @@ weeco accept checker --turn N --result fail --file /abs/rework-note.txt
 
 - `--level` 指向存在的等级；缺某个等级时给出警告并使用内置默认；
 - 每个等级至少一个候选；
-- 候选的 `agent` 只能是 `claude/codex/pi`；
-- 模型名非空；
+- 候选的 `agent` 只能是 `claude/codex/pi/omp`；
+- 模型名为空时使用该 agent 的 CLI 默认模型；
 - `effort` 只能是内置允许的取值。
 
 未知字段必须报错并指出字段名，不能静默忽略。文件缺失时使用内置默认；文件存在但非法时直接报错，不带着错误配置运行。

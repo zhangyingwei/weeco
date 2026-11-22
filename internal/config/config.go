@@ -141,9 +141,6 @@ func validateFile(path string, fc *fileConfig) error {
 			if !validAgents[candidate.Agent] {
 				return fmt.Errorf("%s: levels.%s[%d].agent must be claude, codex, pi or omp", path, level, i)
 			}
-			if strings.TrimSpace(candidate.Model) == "" {
-				return fmt.Errorf("%s: levels.%s[%d].model is required", path, level, i)
-			}
 			if candidate.Effort != "" && !validEfforts[candidate.Effort] {
 				return fmt.Errorf("%s: levels.%s[%d].effort must be low, medium, high or none", path, level, i)
 			}

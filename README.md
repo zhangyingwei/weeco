@@ -4,7 +4,7 @@
 
 v0.12.2 在 v0.12.1 的 Windows 构建基础上，增加一键安装脚本。当前 Herdr 会话是唯一负责人；成员在团队 workspace 中各自使用一个 tab，负责人保留原 pane。团队结束后关闭 weeco 创建的 workspace；使用 worktree 时只关闭成员 tab，保留 worktree workspace。人数包含负责人，简单任务由负责人加 1 名成员完成，复杂任务根据交付物、依赖和所需能力增加成员。负责人也可以执行具体工作。
 
-成员分为 `senior`、`mid`、`junior`、`temp` 四个等级，默认 `mid`。每个等级的模型候选写在 `~/.weeco/config.json` 或项目 `.weeco/config.json`，用 `weeco config check` 查看实际生效的候选。需要生成图片时使用画师：`--role artist`，固定用 Codex，不单独配置图像模型。
+成员分为 `senior`、`mid`、`junior`、`temp` 四个等级，默认 `mid`。每个等级的模型候选写在 `~/.weeco/config.json` 或项目 `.weeco/config.json`，用 `weeco config check` 查看实际生效的候选；`model` 省略时使用对应 CLI 的默认模型。需要生成图片时使用画师：`--role artist`，固定用 Codex，不单独配置图像模型。
 
 ## 安装与使用
 

@@ -67,7 +67,7 @@ func setupRuntime(t *testing.T) runtimeFixture {
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("build fakeherdr: %v\n%s", err, output)
 	}
-	for _, name := range []string{"claude", "codex", "pi"} {
+	for _, name := range []string{"claude", "codex", "pi", "omp"} {
 		if err := os.WriteFile(filepath.Join(bin, name), []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
 			t.Fatal(err)
 		}

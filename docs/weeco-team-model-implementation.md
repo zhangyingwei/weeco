@@ -303,7 +303,7 @@ writer  state=submitted live=idle turn=2 level=mid model=... role=写作 tab=w2:
 | 顶层 | 只允许 `levels` |
 | 等级 | `senior`、`mid`、`junior`、`temp` |
 | `agent` | 可省略，默认 `claude`；允许 `claude`、`codex`、`pi`、`omp` |
-| `model` | 用户配置中必填 |
+| `model` | 可省略；省略或空字符串表示使用该 agent 的 CLI 默认模型 |
 | `effort` | 可省略；允许 `low`、`medium`、`high`、`none`；等级默认 senior=high、mid=medium、junior=low、temp=low |
 | 候选 | 对象或数组；数组顺序就是失败转移顺序 |
 

@@ -55,6 +55,22 @@ func TestRuntimeStartLevelPassesModelArgs(t *testing.T) {
 	}
 }
 
+func TestRuntimeStartUsesAgentDefaultModel(t *testing.T) {
+	f := setupRuntime(t)
+	writeProjectConfig(t, f.root, `{"levels":{"mid":[{"agent":"omp","effort":"high"}]}}`)
+	if code := Run([]string{"start", "--name", "writer", "--role", "写作", "--task", f.task}); code != 0 {
+		t.Fatal("start with the agent default model failed")
+	}
+	m := f.run(t).Members["writer"]
+	if m.Kind != "omp" || m.Model != "" || m.Effort != "high" {
+		t.Fatalf("member = %+v", m)
+	}
+	args := agentNativeArgs(t, f, m.Agent)
+	if strings.Contains(args, "--model") || !strings.Contains(args, "--thinking=high") {
+		t.Fatalf("native args = %q", args)
+	}
+}
+
 func TestRuntimeStartDefaultLevelUsesConfig(t *testing.T) {
 	f := setupRuntime(t)
 	writeProjectConfig(t, f.root, `{"levels":{"mid":[{"model":"default-mid"}]}}`)

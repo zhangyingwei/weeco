@@ -56,6 +56,7 @@ weeco config check
 ```
 
 - `agent` 省略时默认 `claude`，只能是 `claude`、`codex`、`pi`、`omp`；
+- `model` 可省略；省略或空字符串表示使用该 agent 的 CLI 默认模型。例如让 OMP 使用自己的默认模型：`{ "agent": "omp", "effort": "high" }`；显式给 OMP 指定模型时通常要带 provider 前缀，如 `magpie/deepseek/deepseek-flash`；
 - `effort` 省略时按等级取默认：资深 high、中级 medium、初级和临时 low；写 `none` 表示不传强度参数；
 - 候选按顺序失败转移，只在一轮工作开始前尝试下一个；
 - 未知字段会直接报错，不会静默忽略；

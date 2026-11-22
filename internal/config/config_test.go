@@ -88,7 +88,6 @@ func TestRejectsUnknownAndInvalidFields(t *testing.T) {
 		{"unknown top", `{"levels":{},"extra":1}`, `unknown field "extra"`},
 		{"unknown level", `{"levels":{"huge":[{"model":"x"}]}}`, `unknown level "huge"`},
 		{"unknown candidate", `{"levels":{"mid":[{"model":"x","strength":"high"}]}}`, `unknown field "strength"`},
-		{"empty model", `{"levels":{"mid":[{"agent":"claude"}]}}`, "model is required"},
 		{"bad agent", `{"levels":{"mid":[{"agent":"gemini","model":"x"}]}}`, "agent must be claude, codex, pi or omp"},
 		{"bad effort", `{"levels":{"mid":[{"model":"x","effort":"ultra"}]}}`, "effort must be low, medium, high or none"},
 		{"empty level", `{"levels":{"mid":[]}}`, "has no candidates"},
@@ -104,6 +103,23 @@ func TestRejectsUnknownAndInvalidFields(t *testing.T) {
 				t.Fatalf("error = %v, want containing %q", err, tc.want)
 			}
 		})
+	}
+}
+
+func TestAcceptsAgentDefaultModel(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	writeConfig(t, path, `{"levels":{"mid":[{"agent":"omp","effort":"high"}]}}`)
+	cfg, err := LoadFiles(path, "")
+	if err != nil {
+		t.Fatalf("empty model rejected: %v", err)
+	}
+	got := cfg.Levels["mid"][0]
+	if got.Agent != "omp" || got.Model != "" || got.Effort != "high" {
+		t.Fatalf("mid = %+v, want omp with the CLI default model", got)
+	}
+	if !strings.Contains(cfg.Describe(), "<CLI default>") {
+		t.Fatalf("config check hides the CLI default model: %s", cfg.Describe())
 	}
 }
 
